@@ -17,7 +17,8 @@ namespace EightBot.Orbit.Tests
 
             _client = 
                 new OrbitClient()
-                    .AddTypeRegistration<TestClass>(x => x.StringProperty)
+                    .AddTypeRegistration<TestClassA>(x => x.StringProperty)
+                    .AddTypeRegistration<TestClassB>(x => x.StringProperty)
                     .Initialize(tempPath, additionalConnectionStringParameters: "Mode=Exclusive;");
         }
 
@@ -39,7 +40,7 @@ namespace EightBot.Orbit.Tests
         public void OrbitClient_Create_ShouldBeSuccessful()
         {
             var testFile = 
-                new TestClass 
+                new TestClassA 
                 { 
                     StringProperty = "Test Value",
                     IntProperty = 42
@@ -53,14 +54,14 @@ namespace EightBot.Orbit.Tests
         public void OrbitClient_InsertAndGetLatest_ShouldFindMatch()
         {
             var testFile =
-                new TestClass
+                new TestClassA
                 {
                     StringProperty = "Test Value",
                     IntProperty = 42
                 };
 
             _client.Create(testFile);
-            var found = _client.GetLatest<TestClass>(testFile.StringProperty);
+            var found = _client.GetLatest<TestClassA>(testFile.StringProperty);
             Assert.IsTrue(testFile.IntProperty == found.IntProperty);
         }
 
@@ -70,14 +71,14 @@ namespace EightBot.Orbit.Tests
             var expected = 2;
 
             var testFile1 =
-                new TestClass
+                new TestClassA
                 {
                     StringProperty = "Test Value",
                     IntProperty = 42
                 };
 
             var testFile2 =
-                new TestClass
+                new TestClassA
                 {
                     StringProperty = "Test Value",
                     IntProperty = 84
@@ -85,7 +86,7 @@ namespace EightBot.Orbit.Tests
 
             _client.Create(testFile1);
             _client.Update(testFile2);
-            var found = _client.GetAll<TestClass>(testFile1.StringProperty);
+            var found = _client.GetAll<TestClassA>(testFile1.StringProperty);
             Assert.IsTrue(found.Count() == expected);
         }
 
@@ -93,21 +94,21 @@ namespace EightBot.Orbit.Tests
         public void OrbitClient_InsertMultipleAndQuery_DoesGetLatest()
         {
             var testFile1 =
-                new TestClass
+                new TestClassA
                 {
                     StringProperty = "Test Value",
                     IntProperty = 42
                 };
 
             var testFile2 =
-                new TestClass
+                new TestClassA
                 {
                     StringProperty = "Test Value",
                     IntProperty = 84
                 };
 
             var testFile3 =
-                new TestClass
+                new TestClassA
                 {
                     StringProperty = "Test Value",
                     IntProperty = 168
@@ -117,7 +118,7 @@ namespace EightBot.Orbit.Tests
             _client.Upsert(testFile2);
             _client.Upsert(testFile3);
 
-            var found = _client.GetLatest<TestClass>(testFile3.StringProperty);
+            var found = _client.GetLatest<TestClassA>(testFile3.StringProperty);
 
             Assert.IsTrue(found.IntProperty == testFile3.IntProperty);
         }
@@ -128,21 +129,21 @@ namespace EightBot.Orbit.Tests
             var expectedResult = false;
 
             var testFile1 =
-                new TestClass
+                new TestClassA
                 {
                     StringProperty = "Test Value",
                     IntProperty = 42
                 };
 
             var testFile2 =
-                new TestClass
+                new TestClassA
                 {
                     StringProperty = "Test Value",
                     IntProperty = 84
                 };
 
             var testFile3 =
-                new TestClass
+                new TestClassA
                 {
                     StringProperty = "Test Value",
                     IntProperty = 168
@@ -155,11 +156,48 @@ namespace EightBot.Orbit.Tests
             Assert.IsTrue(expectedResult == upsertResult);
         }
 
-        class TestClass
+        [TestMethod]
+        public void OrbitClient_InsertMultipleWithSameKey_ShouldFindRightTypes()
+        {
+            var id = "Test Value";
+
+            var testFile1 =
+                new TestClassA
+                {
+                    StringProperty = id,
+                    IntProperty = 42
+                };
+
+            var testFile2 =
+                new TestClassB
+                {
+                    StringProperty = id,
+                    DoubleProperty = 42d
+                };
+                
+            _client.Upsert(testFile1);
+            _client.Upsert(testFile2);
+
+            var foundA = _client.GetLatest<TestClassA>(id);
+            var foundB = _client.GetLatest<TestClassB>(id);
+
+            Assert.IsTrue(foundA.IntProperty == testFile1.IntProperty);
+            Assert.IsTrue(foundB.DoubleProperty == testFile2.DoubleProperty);
+        }
+
+        class TestClassA
         {
             public string StringProperty { get; set; }
 
             public int IntProperty { get; set; }
+        }
+
+
+        class TestClassB
+        {
+            public string StringProperty { get; set; }
+
+            public double DoubleProperty { get; set; }
         }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.ComponentModel;
-namespace EightBot.Orbit.Core
+
+namespace EightBot.Orbit
 {
     public abstract class SyncBase<T>
     {

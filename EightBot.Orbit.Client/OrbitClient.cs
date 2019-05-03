@@ -6,6 +6,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Linq;
 using DiffMatchPatch;
+using System.Security.Cryptography;
 
 namespace EightBot.Orbit.Client
 {
@@ -13,12 +14,12 @@ namespace EightBot.Orbit.Client
     {
         private const string
             OrbitCacheDb = "OrbitCache.db",
-            CacheCollection = "Cacheable",
+            SyncCollection = "Synchronizable",
 
-            TypeIdIndex = nameof(Synchronizable<object>.TypeId),
-            TypeNameIndex = nameof(Synchronizable<object>.TypeName),
-            ModifiedTimestampIndex = nameof(Synchronizable<object>.ModifiedTimestamp),
-            OperationIndex = nameof(Synchronizable<object>.Operation);
+            SynchronizableTypeIdIndex = nameof(Synchronizable<object>.TypeId),
+            SynchronizableTypeNameIndex = nameof(Synchronizable<object>.TypeName),
+            SynchronizableModifiedTimestampIndex = nameof(Synchronizable<object>.ModifiedTimestamp),
+            SynchronizableOperationIndex = nameof(Synchronizable<object>.Operation);
 
         private readonly Dictionary<Type, RegisteredTypeInformation> _registeredTypes = 
             new Dictionary<Type, RegisteredTypeInformation>();
@@ -35,12 +36,12 @@ namespace EightBot.Orbit.Client
 
             _db = new LiteDatabase($"Filename={CachePath};{additionalConnectionStringParameters}");
 
-            var cacheCollection = _db.GetCollection(CacheCollection);
+            var syncCollection = _db.GetCollection(SyncCollection);
 
-            cacheCollection.EnsureIndex(TypeIdIndex);
-            cacheCollection.EnsureIndex(TypeNameIndex);
-            cacheCollection.EnsureIndex(ModifiedTimestampIndex);
-            cacheCollection.EnsureIndex(OperationIndex);
+            syncCollection.EnsureIndex(SynchronizableTypeIdIndex);
+            syncCollection.EnsureIndex(SynchronizableTypeNameIndex);
+            syncCollection.EnsureIndex(SynchronizableModifiedTimestampIndex);
+            syncCollection.EnsureIndex(SynchronizableOperationIndex);
 
             Initialized = true;
 
@@ -62,17 +63,25 @@ namespace EightBot.Orbit.Client
 
             _registeredTypes[rti.ObjectType] = rti;
 
+            var typeCollection = _db.GetCollection(rti.TypeName);
+
+            BsonMapper.Global
+                .Entity<T>()
+                .Id(idSelector);
+
+            typeCollection.EnsureIndex(rti.IdProperty);
+
             return this;
         }
 
         public bool Create<T>(T obj)
             where T : class
         {
-            var cacheCollection = _db.GetCollection<Synchronizable<T>>(CacheCollection);
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
-            if (!cacheCollection.Exists(GetItemQuery(obj)))
+            if (!syncCollection.Exists(GetItemQuery(obj)))
             {
-                cacheCollection.Insert(GetAsSynchronizable(obj, OperationType.Create));
+                syncCollection.Insert(GetAsSynchronizable(obj, OperationType.Create));
 
                 return true;
             }
@@ -85,8 +94,8 @@ namespace EightBot.Orbit.Client
         {
             if (ItemExistsAndAvailable(obj))
             {
-                var cacheCollection = _db.GetCollection<Synchronizable<T>>(CacheCollection);
-                cacheCollection.Insert(GetAsSynchronizable(obj, OperationType.Update));
+                var syncCollection = GetSynchronizableTypeCollection<T>();
+                syncCollection.Insert(GetAsSynchronizable(obj, OperationType.Update));
                 return true;
             }
 
@@ -97,98 +106,209 @@ namespace EightBot.Orbit.Client
             where T : class
         {
             if (Update(obj))
+            {
                 return true;
+            }
 
             return Create(obj);
-        }
-
-        public void ReplaceAll<T>(T obj)
-            where T : class
-        {
-            TerminateAll(obj);
-            Create(obj);
         }
 
         public bool Delete<T>(T obj)
             where T : class
         {
-            var cacheCollection = _db.GetCollection<Synchronizable<T>>(CacheCollection);
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
             if (ItemExistsAndAvailable(obj))
             {
-                cacheCollection.Insert(GetAsSynchronizable(obj, OperationType.Delete));
+                syncCollection.Insert(GetAsSynchronizable(obj, OperationType.Delete));
                 return true;
             }
 
             return false;
         }
 
-        public bool TerminateAll<T>(T obj)
+        public bool ReplaceSyncQueueHistory<T>(T obj)
             where T : class
         {
-            var cacheCollection = _db.GetCollection<Synchronizable<T>>(CacheCollection);
+            if (!TerminateSyncQueueHisory(obj))
+                return false;
 
-            return cacheCollection.Delete(GetItemQuery(obj)) > 0;
+            return Create(obj);
         }
 
-        public bool TerminateAt<T>(T obj, DateTimeOffset offset)
+        public bool TerminateSyncQueueHisory<T>(T obj)
             where T : class
         {
-            var cacheCollection = _db.GetCollection<Synchronizable<T>>(CacheCollection);
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
-            return cacheCollection
+            return syncCollection.Delete(GetItemQuery(obj)) > 0;
+        }
+
+        public bool TerminateSyncQueueHistoryAt<T>(T obj, DateTimeOffset offset)
+            where T : class
+        {
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+
+            return syncCollection
                 .Delete(
                     Query.And(
                         GetItemQuery(obj),
-                        Query.EQ(ModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
+                        Query.EQ(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
+        }
+
+        public IEnumerable<T> GetLatestAll<T>()
+            where T : class
+        {
+            var typeCollection = GetTypeCollection<T>();
+
+            var allOfType = typeCollection.FindAll().ToList();
+
+            var latestSyncables = GetLatestSyncable<T>();
+
+            var rti = _registeredTypes[typeof(T)];
+
+            foreach (var latest in latestSyncables)
+            {
+                var id = rti.IdSelector.GetValue(latest).ToString();
+                var index = allOfType
+                    .FindIndex(
+                        x =>
+                        {
+                            var itemId = rti.IdSelector.GetValue(x).ToString();
+                            return itemId.Equals(id, StringComparison.Ordinal);
+                        });
+
+                if (index >= 0)
+                {
+                    allOfType[index] = latest;
+                }
+            }
+
+            return allOfType;
         }
 
         public T GetLatest<T>(string id)
             where T : class
         {
-            var cacheCollection = _db.GetCollection<Synchronizable<T>>(CacheCollection);
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
-            if (!ItemExistsAndAvailableWithId<T>(id))
-                return default(T);
-
-            var cacheables = 
-                cacheCollection
-                    .Find(
+            var cacheable = 
+                syncCollection
+                    .FindOne(
                         Query.And(
-                            Query.All(ModifiedTimestampIndex, Query.Descending),
-                            GetItemQueryWithId<T>(id)),
-                        limit: 1);
+                            Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
+                            GetItemQueryWithId<T>(id)));
 
-            return cacheables?.FirstOrDefault()?.Value ?? default(T);
+            if (cacheable != null)
+                return cacheable.Value;
+
+            var rti = _registeredTypes[typeof(T)];
+
+            var typeCollection = GetTypeCollection<T>();
+
+            return typeCollection.FindById(id);
         }
 
-        public IEnumerable<(DateTimeOffset ModifiedOn, OperationType Operation, T Value)> GetAll<T>(string id)
+        private IEnumerable<T> GetLatestSyncable<T>()
+            where T: class
+        {
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+
+            return syncCollection
+                .Find(Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
+                ?.OrderByDescending(x => x.ModifiedTimestamp)
+                ?.GroupBy(x => x.TypeId)
+                ?.Where(x => !x.Any(i => i.Operation == (int)OperationType.Delete))
+                ?.Select(x => x.First().Value)
+                ?? Enumerable.Empty<T>();
+        }
+
+        public bool PopulateCache<T>(IEnumerable<T> items)
+        {
+            if(!DropCache<T>())
+            {
+                return false;
+            }
+
+            var typeCollection = GetTypeCollection<T>();
+
+            return typeCollection.InsertBulk(items) == items.Count();
+        }
+
+        public bool DropCache<T>()
+        {
+            var rti = _registeredTypes[typeof(T)];
+
+            return _db.DropCollection(rti.TypeName);
+        }
+
+        public IEnumerable<SyncInfo<T>> GetSyncHistory<T>(string id)
             where T : class
         {
-            var cacheCollection = _db.GetCollection<Synchronizable<T>>(CacheCollection);
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
             var cacheables =
-                cacheCollection
+                syncCollection
                     .Find(
                         Query.And(
-                            Query.All(ModifiedTimestampIndex, Query.Descending),
+                            Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
                             GetItemQueryWithId<T>(id)));
 
             return 
                 cacheables
-                    ?.Select(x => (DateTimeOffset.FromUnixTimeMilliseconds(x.ModifiedTimestamp), (OperationType)x.Operation, x.Value))
-                    ?.ToList()
-                ?? Enumerable.Empty<(DateTimeOffset ModifiedOn, OperationType Operation, T Value)>();
+                    ?.Select(x => 
+                        new SyncInfo<T>
+                        {
+                            ModifiedOn = x.ModifiedTimestamp,
+                            Operation = (OperationType)x.Operation,
+                            Value = x.Value
+                        })
+                ?? Enumerable.Empty<SyncInfo<T>>();
         }
 
-        public T GetLatestCached<T>(T obj)
+        public IEnumerable<SyncInfo<T>> GetSyncHistory<T>(SyncType syncType = SyncType.Latest)
             where T : class
         {
-            var cacheCollection = _db.GetCollection<Synchronizable<T>>(CacheCollection);
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
-            var cacheable = cacheCollection.FindById(GetId(obj));
+            switch (syncType)
+            {
+                case SyncType.Latest:
+                    return syncCollection
+                        .Find(Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
+                        ?.OrderByDescending(x => x.ModifiedTimestamp)
+                        ?.GroupBy(x => x.TypeId)
+                        ?.Select(
+                            x =>
+                            {
+                                var latest = x.First();
 
-            return cacheable?.Value ?? default(T);
+                                return new SyncInfo<T>
+                                {
+                                    ModifiedOn = latest.ModifiedTimestamp,
+                                    Operation = (OperationType)latest.Operation,
+                                    Value = latest.Value
+                                };
+                            })
+                        ?? Enumerable.Empty<SyncInfo<T>>();
+                case SyncType.FullHistory:
+                    return syncCollection
+                        .Find(Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
+                        ?.OrderByDescending(x => x.ModifiedTimestamp)
+                        ?.Select(
+                            x =>
+                            {
+                                return new SyncInfo<T>
+                                {
+                                    ModifiedOn = x.ModifiedTimestamp,
+                                    Operation = (OperationType)x.Operation,
+                                    Value = x.Value
+                                };
+                            })
+                        ?? Enumerable.Empty<SyncInfo<T>>();
+            }
+
+            return Enumerable.Empty<SyncInfo<T>>();
         }
 
         private bool ItemExistsAndAvailable<T>(T obj)
@@ -201,14 +321,20 @@ namespace EightBot.Orbit.Client
         private bool ItemExistsAndAvailableWithId<T>(string id)
             where T : class
         {
-            var cacheCollection = _db.GetCollection<Synchronizable<T>>(CacheCollection);
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
-            var deleted = cacheCollection.Count(Query.And(Query.EQ(OperationIndex, (int)OperationType.Delete), GetItemQueryWithId<T>(id)));
+            var deleted = 
+                syncCollection
+                    .Count(
+                        Query.And(
+                            Query.EQ(
+                                SynchronizableOperationIndex, (int)OperationType.Delete), 
+                                GetItemQueryWithId<T>(id)));
 
             if (deleted > 0)
                 return false;
 
-            return cacheCollection.Count(GetItemQueryWithId<T>(id)) > 0;
+            return syncCollection.Count(GetItemQueryWithId<T>(id)) > 0;
         }
 
         private Synchronizable<T> GetAsSynchronizable<T>(T obj, OperationType operationType)
@@ -227,7 +353,7 @@ namespace EightBot.Orbit.Client
             {
                 Id = ObjectId.NewObjectId(),
                 TypeId = typeId,
-                TypeName = rti.ObjectTypeName,
+                TypeName = rti.TypeFullName,
                 Value = obj,
                 ModifiedTimestamp = now.ToUnixTimeMilliseconds(),
                 Operation = (int)operationType
@@ -245,8 +371,8 @@ namespace EightBot.Orbit.Client
             where T : class
         {
             return Query.And(
-                Query.EQ(TypeIdIndex, id),
-                Query.EQ(TypeNameIndex, GetObjectTypeName<T>()));
+                Query.EQ(SynchronizableTypeIdIndex, id),
+                Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()));
         }
 
         private BsonValue GetId<T>(T obj)
@@ -257,11 +383,34 @@ namespace EightBot.Orbit.Client
             return rti.IdSelector.GetValue(obj).ToString();
         }
 
-        private string GetObjectTypeName<T>()
+        private string GetTypeFullName<T>()
         {
             var rti = _registeredTypes[typeof(T)];
 
-            return rti.ObjectTypeName;
+            return rti.TypeFullName;
+        }
+
+        private string GetTypeName<T>()
+        {
+            var rti = _registeredTypes[typeof(T)];
+
+            return rti.TypeName;
+        }
+
+        private LiteCollection<Synchronizable<T>> GetSynchronizableTypeCollection<T>()
+        {
+            return _db.GetCollection<Synchronizable<T>>(SyncCollection);
+        }
+
+        private LiteCollection<T> GetTypeCollection<T>()
+        {
+            var rti = _registeredTypes[typeof(T)];
+
+            var typeCollection = _db.GetCollection<T>(rti.TypeName);
+
+            typeCollection.EnsureIndex(rti.IdProperty);
+
+            return typeCollection;
         }
     }
 
@@ -269,7 +418,13 @@ namespace EightBot.Orbit.Client
     {
         public PropertyInfo IdSelector { get; set; }
 
-        public string ObjectTypeName { get; set; }
+        public string IdProperty { get; set; }
+
+        public string TypeFullName { get; set; }
+
+        public string TypeName { get; set; }
+
+        public string TypeNamespace { get; set; }
 
         public Type ObjectType { get; set; }
 
@@ -277,12 +432,17 @@ namespace EightBot.Orbit.Client
         {
             if(idSelector.Body is MemberExpression mex && mex.Member is PropertyInfo pi)
             {
+                var type = typeof(T);
+
                 var rti =
                     new RegisteredTypeInformation
                     {
                         IdSelector = pi,
-                        ObjectTypeName = typeof(T).FullName,
-                        ObjectType = typeof(T)
+                        IdProperty = pi.Name,
+                        TypeFullName = type.FullName,
+                        TypeName = type.Name,
+                        TypeNamespace = type.Namespace,
+                        ObjectType = type
                     };
 
                 return rti;

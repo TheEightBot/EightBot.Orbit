@@ -2,6 +2,9 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.IO;
 using EightBot.Orbit.Client;
 using System.Linq;
+using Bogus;
+using System;
+using Bogus.Extensions;
 
 namespace EightBot.Orbit.Tests
 {
@@ -10,16 +13,21 @@ namespace EightBot.Orbit.Tests
     {
         OrbitClient _client;
 
+        public OrbitClientTests()
+        {
+            Randomizer.Seed = new Random(42);
+        }
+
         [TestInitialize]
         public void Setup()
         {
             var tempPath = Path.GetTempPath();
 
-            _client = 
+            _client =
                 new OrbitClient()
+                    .Initialize(tempPath, additionalConnectionStringParameters: "Mode=Exclusive;")
                     .AddTypeRegistration<TestClassA>(x => x.StringProperty)
-                    .AddTypeRegistration<TestClassB>(x => x.StringProperty)
-                    .Initialize(tempPath, additionalConnectionStringParameters: "Mode=Exclusive;");
+                    .AddTypeRegistration<TestClassB>(x => x.StringProperty);
         }
 
         [TestCleanup]
@@ -86,7 +94,7 @@ namespace EightBot.Orbit.Tests
 
             _client.Create(testFile1);
             _client.Update(testFile2);
-            var found = _client.GetAll<TestClassA>(testFile1.StringProperty);
+            var found = _client.GetSyncHistory<TestClassA>(testFile1.StringProperty);
             Assert.IsTrue(found.Count() == expected);
         }
 
@@ -183,6 +191,40 @@ namespace EightBot.Orbit.Tests
 
             Assert.IsTrue(foundA.IntProperty == testFile1.IntProperty);
             Assert.IsTrue(foundB.DoubleProperty == testFile2.DoubleProperty);
+        }
+
+        [TestMethod]
+        public void OrbitClient_BulkInsertAndUpdate_ShouldGetNewValue()
+        {
+
+            var testObjects = 
+                new Faker<TestClassA>()
+                    .RuleFor(x => x.StringProperty, (f, u) => $"String_{f.IndexFaker}")
+                    .RuleFor(x => x.IntProperty, (f, u) => f.IndexFaker);
+
+            var generatedTestObjects = testObjects.GenerateBetween(100, 100);
+
+            var populated = _client.PopulateCache(generatedTestObjects);
+
+            Assert.IsTrue(populated);
+
+            var original = generatedTestObjects[49];
+
+            var foundObject = _client.GetLatest<TestClassA>(original.StringProperty);
+
+            Assert.AreEqual(foundObject.IntProperty, original.IntProperty);
+
+            foundObject.IntProperty = foundObject.IntProperty * 2;
+
+            var upsertResult = _client.Upsert(foundObject);
+
+            Assert.IsTrue(upsertResult);
+
+            var latest = _client.GetLatestAll<TestClassA>();
+
+            var updated = latest.FirstOrDefault(x => x.StringProperty == original.StringProperty);
+
+            Assert.IsTrue(updated.IntProperty == foundObject.IntProperty);
         }
 
         class TestClassA

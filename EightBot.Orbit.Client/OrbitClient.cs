@@ -56,7 +56,7 @@ namespace EightBot.Orbit.Client
             _db.Dispose();
         }
 
-        public OrbitClient AddTypeRegistration<T>(Expression<Func<T, string>> idSelector)
+        public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, TId>> idSelector)
             where T : class
         {
             var rti = RegisteredTypeInformation.Create(idSelector);
@@ -67,7 +67,7 @@ namespace EightBot.Orbit.Client
 
             BsonMapper.Global
                 .Entity<T>()
-                .Id(idSelector);
+                .Id(idSelector, false);
 
             typeCollection.EnsureIndex(rti.IdProperty);
 
@@ -123,7 +123,7 @@ namespace EightBot.Orbit.Client
                 syncCollection.Insert(GetAsSynchronizable(obj, OperationType.Delete));
                 return true;
             }
-
+            
             return false;
         }
 
@@ -156,14 +156,14 @@ namespace EightBot.Orbit.Client
                         Query.EQ(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
         }
 
-        public IEnumerable<T> GetLatestAll<T>()
+        public IEnumerable<T> GetLatest<T>()
             where T : class
         {
             var typeCollection = GetTypeCollection<T>();
 
             var allOfType = typeCollection.FindAll().ToList();
 
-            var latestSyncables = GetLatestSyncable<T>();
+            var latestSyncables = GetLatestSyncQueue<T>();
 
             var rti = _registeredTypes[typeof(T)];
 
@@ -202,14 +202,12 @@ namespace EightBot.Orbit.Client
             if (cacheable != null)
                 return cacheable.Value;
 
-            var rti = _registeredTypes[typeof(T)];
-
             var typeCollection = GetTypeCollection<T>();
 
             return typeCollection.FindById(id);
         }
 
-        private IEnumerable<T> GetLatestSyncable<T>()
+        public IEnumerable<T> GetLatestSyncQueue<T>()
             where T: class
         {
             var syncCollection = GetSynchronizableTypeCollection<T>();
@@ -428,7 +426,7 @@ namespace EightBot.Orbit.Client
 
         public Type ObjectType { get; set; }
 
-        public static RegisteredTypeInformation Create<T>(Expression<Func<T, string>> idSelector)
+        public static RegisteredTypeInformation Create<T, TId>(Expression<Func<T, TId>> idSelector)
         {
             if(idSelector.Body is MemberExpression mex && mex.Member is PropertyInfo pi)
             {

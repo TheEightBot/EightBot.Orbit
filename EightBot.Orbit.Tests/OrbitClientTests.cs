@@ -26,8 +26,9 @@ namespace EightBot.Orbit.Tests
             _client =
                 new OrbitClient()
                     .Initialize(tempPath, additionalConnectionStringParameters: "Mode=Exclusive;")
-                    .AddTypeRegistration<TestClassA>(x => x.StringProperty)
-                    .AddTypeRegistration<TestClassB>(x => x.StringProperty);
+                    .AddTypeRegistration<TestClassA, string>(x => x.StringProperty)
+                    .AddTypeRegistration<TestClassB, string>(x => x.StringProperty)
+                    .AddTypeRegistration<TestClassC, int>(x => x.IntProperty);
         }
 
         [TestCleanup]
@@ -220,7 +221,7 @@ namespace EightBot.Orbit.Tests
 
             Assert.IsTrue(upsertResult);
 
-            var latest = _client.GetLatestAll<TestClassA>();
+            var latest = _client.GetLatest<TestClassA>();
 
             var updated = latest.FirstOrDefault(x => x.StringProperty == original.StringProperty);
 
@@ -240,6 +241,13 @@ namespace EightBot.Orbit.Tests
             public string StringProperty { get; set; }
 
             public double DoubleProperty { get; set; }
+        }
+
+        class TestClassC
+        {
+            public int IntProperty { get; set; }
+
+            public string DoubleProperty { get; set; }
         }
     }
 }

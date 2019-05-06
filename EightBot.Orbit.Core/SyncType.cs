@@ -1,5 +1,5 @@
 ﻿using System;
-namespace EightBot.Orbit.Client
+namespace EightBot.Orbit
 {
     public enum SyncType
     {

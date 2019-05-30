@@ -32,18 +32,21 @@ namespace EightBot.Orbit.Client
 
         public OrbitClient Initialize(string cacheDirectory, string customCacheName = null, string additionalConnectionStringParameters = null)
         {
-            CachePath = Path.Combine(cacheDirectory, customCacheName ?? OrbitCacheDb);
+            if(!Initialized)
+            {
+                Initialized = true;
 
-            _db = new LiteDatabase($"Filename={CachePath};{additionalConnectionStringParameters}");
+                CachePath = Path.Combine(cacheDirectory, customCacheName ?? OrbitCacheDb);
 
-            var syncCollection = _db.GetCollection(SyncCollection);
+                _db = new LiteDatabase($"Filename={CachePath};{additionalConnectionStringParameters}");
 
-            syncCollection.EnsureIndex(SynchronizableTypeIdIndex);
-            syncCollection.EnsureIndex(SynchronizableTypeNameIndex);
-            syncCollection.EnsureIndex(SynchronizableModifiedTimestampIndex);
-            syncCollection.EnsureIndex(SynchronizableOperationIndex);
+                var syncCollection = _db.GetCollection(SyncCollection);
 
-            Initialized = true;
+                syncCollection.EnsureIndex(SynchronizableTypeIdIndex);
+                syncCollection.EnsureIndex(SynchronizableTypeNameIndex);
+                syncCollection.EnsureIndex(SynchronizableModifiedTimestampIndex);
+                syncCollection.EnsureIndex(SynchronizableOperationIndex);
+            }
 
             return this;
         }

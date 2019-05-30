@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using LiteDB;
 using System.IO;
 using System.Collections.Generic;
@@ -250,7 +250,8 @@ namespace EightBot.Orbit.Client
                     .Find(
                         Query.And(
                             Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
-                            GetItemQueryWithId<T>(id)));
+                            GetItemQueryWithId<T>(id)))
+                    ?.ToList();
 
             return 
                 cacheables
@@ -261,6 +262,7 @@ namespace EightBot.Orbit.Client
                             Operation = (OperationType)x.Operation,
                             Value = x.Value
                         })
+                    ?.ToList()
                 ?? Enumerable.Empty<SyncInfo<T>>();
         }
 
@@ -288,6 +290,7 @@ namespace EightBot.Orbit.Client
                                     Value = latest.Value
                                 };
                             })
+                        ?.ToList()
                         ?? Enumerable.Empty<SyncInfo<T>>();
                 case SyncType.FullHistory:
                     return syncCollection
@@ -303,6 +306,7 @@ namespace EightBot.Orbit.Client
                                     Value = x.Value
                                 };
                             })
+                        ?.ToList()
                         ?? Enumerable.Empty<SyncInfo<T>>();
             }
 

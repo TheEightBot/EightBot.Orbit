@@ -17,6 +17,14 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sample", "Sample", "{67753B
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{9447D525-A673-4D2D-B54A-72B90C476F1A}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Build", "Build", "{C88EB3D3-4551-4980-A52B-B786BCB83E5D}"
+	ProjectSection(SolutionItems) = preProject
+		OrbitClient.nuspec = OrbitClient.nuspec
+		build.cake = build.cake
+		build.ps1 = build.ps1
+		cakebuild.sh = cakebuild.sh
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

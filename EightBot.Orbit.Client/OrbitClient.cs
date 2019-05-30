@@ -419,7 +419,9 @@ namespace EightBot.Orbit.Client
 
     internal class RegisteredTypeInformation
     {
-        public PropertyInfo IdSelector { get; set; }
+        public PropertyInfo PropertyIdSelector { get; set; }
+
+        public Delegate FuncIdSelector { get; set; }
 
         public string IdProperty { get; set; }
 
@@ -431,7 +433,7 @@ namespace EightBot.Orbit.Client
 
         public Type ObjectType { get; set; }
 
-        public static RegisteredTypeInformation Create<T, TId>(Expression<Func<T, TId>> idSelector)
+        public static RegisteredTypeInformation Create<T, TId>(Expression<Func<T, TId>> idSelector, string typeNameOverride = null)
         {
             if(idSelector.Body is MemberExpression mex && mex.Member is PropertyInfo pi)
             {
@@ -440,10 +442,10 @@ namespace EightBot.Orbit.Client
                 var rti =
                     new RegisteredTypeInformation
                     {
-                        IdSelector = pi,
+                        PropertyIdSelector = pi,
                         IdProperty = pi.Name,
                         TypeFullName = type.FullName,
-                        TypeName = type.Name,
+                        TypeName = typeNameOverride ?? type.Name,
                         TypeNamespace = type.Namespace,
                         ObjectType = type
                     };
@@ -452,6 +454,38 @@ namespace EightBot.Orbit.Client
             }
 
             throw new ArgumentException($"The expression provided is not a property selector for {typeof(T).Name}", nameof(idSelector));
+        }
+
+        public static RegisteredTypeInformation Create<T, TId>(Expression<Func<T, string>> idSelector, Expression<Func<T, TId>> idProperty, string typeNameOverride = null)
+        {
+            if(idSelector is LambdaExpression lex && idProperty.Body is MemberExpression mex && mex.Member is PropertyInfo pi)
+            {
+                var compiledExpression = lex.Compile();
+                var type = typeof(T);
+
+                var rti =
+                    new RegisteredTypeInformation
+                    {
+                        FuncIdSelector = compiledExpression,
+                        IdProperty = pi.Name,
+                        TypeFullName = type.FullName,
+                        TypeName = typeNameOverride ?? type.Name,
+                        TypeNamespace = type.Namespace,
+                        ObjectType = type
+                    };
+
+                return rti;
+            }
+
+            throw new ArgumentException($"The expression provided is not a lambda expression for {typeof(T).Name}", nameof(idSelector));
+        }
+
+        public string GetId<T>(T value)
+        {
+            if (PropertyIdSelector != null)
+                return PropertyIdSelector.GetValue(value).ToString();
+
+            return ((Func<T, string>)FuncIdSelector)(value);
         }
     }
 }

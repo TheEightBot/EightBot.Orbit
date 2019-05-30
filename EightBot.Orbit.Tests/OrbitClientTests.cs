@@ -5,6 +5,7 @@ using System.Linq;
 using Bogus;
 using System;
 using Bogus.Extensions;
+using System.Threading.Tasks;
 
 namespace EightBot.Orbit.Tests
 {
@@ -28,7 +29,8 @@ namespace EightBot.Orbit.Tests
                     .Initialize(tempPath, additionalConnectionStringParameters: "Mode=Exclusive;")
                     .AddTypeRegistration<TestClassA, string>(x => x.StringProperty)
                     .AddTypeRegistration<TestClassB, string>(x => x.StringProperty)
-                    .AddTypeRegistration<TestClassC, int>(x => x.IntProperty);
+                    .AddTypeRegistration<TestClassC, int>(x => x.IntProperty)
+                    .AddTypeRegistration<TestClassD, float>(x => x.FloatProperty.ToString(), x => x.FloatProperty);
         }
 
         [TestCleanup]
@@ -60,6 +62,20 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        public void OrbitClient_CreateWithObjectThatUsesFuncProperty_ShouldBeSuccessful()
+        {
+            var testFile =
+                new TestClassD
+                {
+                    FloatProperty = 10.0f,
+                    DoubleProperty = 42d
+                };
+
+            var result = _client.Create(testFile);
+            Assert.IsTrue(result);
+        }
+
+        [TestMethod]
         public void OrbitClient_InsertAndGetLatest_ShouldFindMatch()
         {
             var testFile =
@@ -70,8 +86,23 @@ namespace EightBot.Orbit.Tests
                 };
 
             _client.Create(testFile);
-            var found = _client.GetLatest<TestClassA>(testFile.StringProperty);
+            var found = _client.GetLatest(testFile);
             Assert.IsTrue(testFile.IntProperty == found.IntProperty);
+        }
+
+        [TestMethod]
+        public void OrbitClient_InsertWithObjectThatUsesFuncPropertyAndGetLatest_ShouldFindMatch()
+        {
+            var testFile =
+                new TestClassD
+                {
+                    FloatProperty = 10.0f,
+                    DoubleProperty = 42d
+                };
+
+            _client.Create(testFile);
+            var found = _client.GetLatest(testFile);
+            Assert.IsTrue(testFile.FloatProperty == found.FloatProperty);
         }
 
         [TestMethod]
@@ -127,7 +158,7 @@ namespace EightBot.Orbit.Tests
             _client.Upsert(testFile2);
             _client.Upsert(testFile3);
 
-            var found = _client.GetLatest<TestClassA>(testFile3.StringProperty);
+            var found = _client.GetLatest(testFile3);
 
             Assert.IsTrue(found.IntProperty == testFile3.IntProperty);
         }
@@ -195,6 +226,64 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        public async Task OrbitClient_InsertConcurrent_ShouldNotFail()
+        {
+            try
+            {
+                var id1 = "id1";
+                var id2 = "id2";
+
+                var max = 100;
+
+                var testFile1 =
+                    new TestClassA
+                    {
+                        StringProperty = id1
+                    };
+
+                var testFile2 =
+                    new TestClassA
+                    {
+                        StringProperty = id2
+                    };
+
+                var insert1Test =
+                    Task.Run(
+                        () =>
+                        {
+                            for (int i = 1; i <= max; i++)
+                            {
+                                testFile1.IntProperty = i;
+                                _client.Upsert(testFile1);
+                            }
+                        });
+
+                var insert2Test =
+                    Task.Run(
+                        () =>
+                        {
+                            for (int i = 1; i <= max; i++)
+                            {
+                                testFile2.IntProperty = i;
+                                _client.Upsert(testFile2);
+                            }
+                        });
+
+                await Task.WhenAll(insert1Test, insert2Test);
+
+                var found1 = _client.GetLatest<TestClassA>(id1);
+                var found2 = _client.GetLatest<TestClassA>(id2);
+
+                Assert.IsTrue(found1.IntProperty == max);
+                Assert.IsTrue(found2.IntProperty == max);
+            }
+            catch (Exception ex)
+            {
+                Assert.Fail($"Expected to not fail, but received: {ex.Message}");
+            }
+        }
+
+        [TestMethod]
         public void OrbitClient_BulkInsertAndUpdate_ShouldGetNewValue()
         {
 
@@ -248,6 +337,13 @@ namespace EightBot.Orbit.Tests
             public int IntProperty { get; set; }
 
             public string DoubleProperty { get; set; }
+        }
+
+        class TestClassD
+        {
+            public float FloatProperty { get; set; }
+
+            public double DoubleProperty { get; set; }
         }
     }
 }

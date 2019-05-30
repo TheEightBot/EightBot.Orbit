@@ -169,12 +169,12 @@ namespace EightBot.Orbit.Client
 
             foreach (var latest in latestSyncables)
             {
-                var id = rti.IdSelector.GetValue(latest).ToString();
+                var id = rti.GetId(latest);
                 var index = allOfType
                     .FindIndex(
                         x =>
                         {
-                            var itemId = rti.IdSelector.GetValue(x).ToString();
+                            var itemId = rti.GetId(x);
                             return itemId.Equals(id, StringComparison.Ordinal);
                         });
 
@@ -345,7 +345,7 @@ namespace EightBot.Orbit.Client
         {
             var rti = _registeredTypes[typeof(T)];
 
-            var typeId = rti.IdSelector.GetValue(obj).ToString();
+            var typeId = rti.GetId(obj);
 
             if (string.IsNullOrEmpty(typeId))
                 throw new Exception("All cachable objects need to have a non-null value for the Id");
@@ -383,7 +383,7 @@ namespace EightBot.Orbit.Client
         {
             var rti = _registeredTypes[typeof(T)];
 
-            return rti.IdSelector.GetValue(obj).ToString();
+            return rti.GetId(obj);
         }
 
         private string GetTypeFullName<T>()

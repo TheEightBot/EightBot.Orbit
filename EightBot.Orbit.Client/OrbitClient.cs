@@ -218,6 +218,7 @@ namespace EightBot.Orbit.Client
                 ?.GroupBy(x => x.TypeId)
                 ?.Where(x => !x.Any(i => i.Operation == (int)OperationType.Delete))
                 ?.Select(x => x.First().Value)
+                ?.ToList()
                 ?? Enumerable.Empty<T>();
         }
 

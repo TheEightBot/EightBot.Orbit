@@ -33,7 +33,7 @@ namespace OrbitSample
             var users = JsonConvert.DeserializeObject<IEnumerable<User>>(usersJson);
             client.PopulateCache(users);
 
-            var cachedUsers = client.GetLatest<User>();
+            var cachedUsers = client.GetAllLatest<User>();
 
             listView.ItemsSource = cachedUsers;
         }

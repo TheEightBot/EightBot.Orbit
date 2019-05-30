@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using LiteDB;
 using System.IO;
 using System.Collections.Generic;
@@ -203,6 +203,29 @@ namespace EightBot.Orbit.Client
             }
 
             return allOfType;
+        }
+
+        public T GetLatest<T>(T obj)
+            where T : class
+        {
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+            var rti = _registeredTypes[typeof(T)];
+
+            var id = rti.GetId(obj);
+
+            var cacheable =
+                syncCollection
+                    .FindOne(
+                        Query.And(
+                            Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
+                            GetItemQueryWithId<T>(id)));
+
+            if (cacheable != null)
+                return cacheable.Value;
+
+            var typeCollection = GetTypeCollection<T>();
+
+            return typeCollection.FindById(id);
         }
 
         public T GetLatest<T>(string id)

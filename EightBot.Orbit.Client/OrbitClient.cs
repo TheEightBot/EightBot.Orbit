@@ -56,10 +56,10 @@ namespace EightBot.Orbit.Client
             _db.Dispose();
         }
 
-        public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, TId>> idSelector)
+        public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, TId>> idSelector, string typeNameOverride = null)
             where T : class
         {
-            var rti = RegisteredTypeInformation.Create(idSelector);
+            var rti = RegisteredTypeInformation.Create(idSelector, typeNameOverride);
 
             _registeredTypes[rti.ObjectType] = rti;
 
@@ -68,6 +68,24 @@ namespace EightBot.Orbit.Client
             BsonMapper.Global
                 .Entity<T>()
                 .Id(idSelector, false);
+
+            typeCollection.EnsureIndex(rti.IdProperty);
+
+            return this;
+        }
+
+        public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, string>> idSelector, Expression<Func<T, TId>> idProperty, string typeNameOverride = null)
+            where T : class
+        {
+            var rti = RegisteredTypeInformation.Create(idSelector, idProperty, typeNameOverride);
+
+            _registeredTypes[rti.ObjectType] = rti;
+
+            var typeCollection = _db.GetCollection(rti.TypeName);
+
+            BsonMapper.Global
+                .Entity<T>()
+                .Id(idProperty, false);
 
             typeCollection.EnsureIndex(rti.IdProperty);
 

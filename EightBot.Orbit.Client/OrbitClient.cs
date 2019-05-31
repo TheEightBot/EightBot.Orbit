@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -252,6 +252,10 @@ namespace EightBot.Orbit.Client
                 if (index >= 0)
                 {
                     allOfType[index] = latest;
+                }
+                else
+                {
+                    allOfType.Add(latest);
                 }
             }
 

@@ -19,7 +19,8 @@
     
     <references>    
         <group> 
-          <reference file="EightBot.Orbit.Client.dll" />
+            <reference file="EightBot.Orbit.Client.dll" />
+            <reference file="EightBot.Orbit.Core.dll" />
         </group>
     </references>
     

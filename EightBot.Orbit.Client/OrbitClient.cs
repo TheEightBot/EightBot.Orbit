@@ -57,7 +57,14 @@ namespace EightBot.Orbit.Client
             if (!Initialized)
                 return;
 
-            _db.Dispose();
+            try
+            {
+                _db.Dispose();
+            }
+            finally
+            {
+                Initialized = false;
+            }
         }
 
         public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, TId>> idSelector, string typeNameOverride = null)

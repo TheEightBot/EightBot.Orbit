@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -171,6 +171,14 @@ namespace EightBot.Orbit.Client
             var syncCollection = GetSynchronizableTypeCollection<T>();
 
             return syncCollection.Delete(GetItemQuery(obj, category)) > 0;
+        }
+
+        public bool TerminateSyncQueueHisory<T>(string category = null)
+            where T : class
+        {
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+
+            return syncCollection.Delete(GetItemQuery<T>(category)) > 0;
         }
 
         public bool TerminateSyncQueueHistoryAt<T>(T obj, DateTimeOffset offset, string category = null)

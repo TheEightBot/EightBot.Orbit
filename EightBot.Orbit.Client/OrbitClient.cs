@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -202,6 +202,30 @@ namespace EightBot.Orbit.Client
                     Query.And(
                         GetItemQuery(obj, category),
                         Query.EQ(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
+        }
+
+        public bool TerminateSyncQueueHistoryBefore<T>(T obj, DateTimeOffset offset, string category = null)
+            where T : class
+        {
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+
+            return syncCollection
+                .Delete(
+                    Query.And(
+                        GetItemQuery(obj, category),
+                        Query.LT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
+        }
+
+        public bool TerminateSyncQueueHistoryAfter<T>(T obj, DateTimeOffset offset, string category = null)
+            where T : class
+        {
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+
+            return syncCollection
+                .Delete(
+                    Query.And(
+                        GetItemQuery(obj, category),
+                        Query.GT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
         }
 
         public IEnumerable<string> GetCategories<T>()

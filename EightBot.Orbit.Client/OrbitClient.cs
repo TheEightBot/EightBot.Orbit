@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -70,6 +70,9 @@ namespace EightBot.Orbit.Client
         public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, TId>> idSelector, string typeNameOverride = null)
             where T : class
         {
+            if (!Initialized)
+                throw new ClientNotInitializedException($"{nameof(Initialize)} must be called before you can add type registrations.");
+
             var rti = RegisteredTypeInformation.Create(idSelector, typeNameOverride);
 
             _registeredTypes[rti.ObjectType] = rti;

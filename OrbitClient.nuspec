@@ -30,7 +30,19 @@
     <!--netstandard-->
     <file src="EightBot.Orbit.Client\bin\Release\netstandard2.0\EightBot.Orbit.Client.dll" target="lib\netstandard2.0" />
     <file src="EightBot.Orbit.Core\bin\Release\netstandard2.0\EightBot.Orbit.Core.dll" target="lib\netstandard2.0" />
+    
+    <!--Android-->
+    <file src="EightBot.Orbit.Client\bin\Release\netstandard2.0\EightBot.Orbit.Client.dll" target="lib\MonoAndroid50" />
+    <file src="EightBot.Orbit.Core\bin\Release\netstandard2.0\EightBot.Orbit.Core.dll" target="lib\MonoAndroid50" />
 
+    <!--iPhone Unified-->
+    <file src="EightBot.Orbit.Client\bin\Release\netstandard2.0\EightBot.Orbit.Client.dll" target="lib\Xamarin.iOS10" />
+    <file src="EightBot.Orbit.Core\bin\Release\netstandard2.0\EightBot.Orbit.Core.dll" target="lib\Xamarin.iOS10" />
+
+    <!--UWP-->
+    <file src="EightBot.Orbit.Client\bin\Release\netstandard2.0\EightBot.Orbit.Client.dll" target="lib\uap10.0" />
+    <file src="EightBot.Orbit.Core\bin\Release\netstandard2.0\EightBot.Orbit.Core.dll" target="lib\uap10.0" />
+        
   </files>
 
 </package>

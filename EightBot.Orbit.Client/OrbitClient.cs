@@ -24,6 +24,8 @@ namespace EightBot.Orbit.Client
 
         LiteDatabase _db;
 
+        private string _additionalConnectionStringParameters;
+
         public static string CategorySeparator { get; set; } = "_-_";
 
         public string CachePath { get; private set; }
@@ -37,6 +39,8 @@ namespace EightBot.Orbit.Client
                 Initialized = true;
 
                 CachePath = Path.Combine(cacheDirectory, customCacheName ?? OrbitCacheDb);
+
+                _additionalConnectionStringParameters = additionalConnectionStringParameters;
 
                 _db = new LiteDatabase($"Filename={CachePath};{additionalConnectionStringParameters}");
 
@@ -52,19 +56,23 @@ namespace EightBot.Orbit.Client
             return this;
         }
 
+        public OrbitClient Startup()
+        {
+            if (Initialized && _db == null)
+            {
+                _db = new LiteDatabase($"Filename={CachePath};{_additionalConnectionStringParameters}");
+            }
+
+            return this;
+        }
+
         public void Shutdown()
         {
-            if (!Initialized)
+            if (!Initialized || _db == null)
                 return;
-
-            try
-            {
-                _db.Dispose();
-            }
-            finally
-            {
-                Initialized = false;
-            }
+                
+            _db?.Dispose();
+            _db = null;
         }
 
         public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, TId>> idSelector, string typeNameOverride = null)

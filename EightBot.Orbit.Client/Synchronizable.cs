@@ -6,6 +6,8 @@ namespace EightBot.Orbit.Client
     {
         public ObjectId Id { get; set; }
 
+        public string Category { get; set; }
+
         public string TypeName { get; set; }
 
         public long ModifiedTimestamp { get; set; }

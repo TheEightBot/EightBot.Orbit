@@ -2,10 +2,15 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageIconUrl>https://cdn3.iconfinder.com/data/icons/unigrid-phantom-science-vol-1/60/003_002_moon_orbit_ecuator_sputnik_satellite-128.png</PackageIconUrl>
+    <Company>Eight-Bot</Company>
+    <Authors>Nathan</Authors>
+    <Description>Server side sync compents</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EightBot.Nebula.DocumentDb" Version="1.1.4" />
+    <PackageReference Include="EightBot.Nebula.DocumentDb" Version="1.1.5" />
   </ItemGroup>
 
   <ItemGroup>

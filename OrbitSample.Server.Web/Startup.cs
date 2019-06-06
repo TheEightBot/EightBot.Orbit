@@ -1,18 +1,14 @@
 ﻿using AspNetCore.RouteAnalyzer;
-using EightBot.Nebula.DocumentDb;
 using EightBot.Orbit.Server;
 using EightBot.Orbit.Server.Data;
-using EightBot.Orbit.Server.Web;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Azure.Documents;
-using Microsoft.Azure.Documents.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Threading.Tasks;
 
 namespace OrbitSample.Server.Web
 {
@@ -47,50 +43,20 @@ namespace OrbitSample.Server.Web
                 x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
             }).AddJwtBearer();
 
-            services.AddResponseCompression();
-
-            ////services.AddMvc();
-
-            //services.AddMvc(x => x.Conventions.Add(new OrbitSyncControllerRouteConvention()))
-            //    .ConfigureApplicationPartManager(x =>
-            //    {
-            //        var syncControllers = new OrbitSyncControllerFeatureProvider();
-
-            //        syncControllers.EnsureSyncController<Models.User>();
-            //        syncControllers.EnsureSyncController<Models.Post>(false);
-
-            //        x.FeatureProviders.Add(syncControllers);
-            //    });
-            ///*.SetCompatibilityVersion(CompatibilityVersion.Version_2_2)*/
-
             services.AddMvc();
 
-            services.AddAntiforgery(x => x.SuppressXFrameOptionsHeader = true);
+            var cosmosUri = this.Configuration.GetConnectionString("OrbitSampleAzureCosmosEndpointUri");
+            var cosmosAuhKey = this.Configuration.GetConnectionString("OrbitSampleAzureCosmosAuthKey");
+            var cosmosDataBaseId = this.Configuration.GetConnectionString("OrbitSampleAzureCosmosDataBaseId");
 
-            services.AddHttpClient();
-
-            // EightBot.Nebula
-            services.AddSingleton<IDataClient, DataClient>(x =>
+            // TODO: Clean this up. Find better async await ConfigureServices
+            services.AddDefaultSyncCosmosDataClient(cosmosUri, cosmosAuhKey, cosmosDataBaseId, x =>
             {
-                var cosmosDataBaseId = this.Configuration.GetConnectionString("OrbitSampleAzureCosmosDataBaseId");
-
-                var documentClient = new DocumentClient(new Uri(this.Configuration.GetConnectionString("OrbitSampleAzureCosmosEndpointUri")), this.Configuration.GetConnectionString("OrbitSampleAzureCosmosAuthKey"), new ConnectionPolicy() { ConnectionMode = ConnectionMode.Gateway });
-                documentClient.OpenAsync().Wait();
-                documentClient.CreateDatabaseIfNotExistsAsync(new Database { Id = cosmosDataBaseId }, new RequestOptions() { OfferThroughput = 400 }).Wait();
-
-                var documentDbLogger = x.GetRequiredService<ILoggerFactory>().CreateLogger("EightBot.Nebula.DocumentDb");
-
-                var dataClient = new DataClient(documentClient, cosmosDataBaseId, x.GetService<IHttpContextAccessor>()?.HttpContext.User)
+                Task.Run(async () =>
                 {
-                    ThrowErrors = this.HostingEnvironment.IsDevelopment(),
-                    LogError = y => documentDbLogger.LogError(y),
-                    LogInformation = y => documentDbLogger.LogInformation(y)
-                };
-
-                dataClient.EnsureDocumentCollection<Models.User>(y => y.Company.Name).Wait();
-                dataClient.EnsureDocumentCollection<Models.Post>(y => y.UserId).Wait();
-
-                return dataClient;
+                    await x.EnsureCollectionAsync<Models.User>(y => y.Company.Name);
+                    await x.EnsureCollectionAsync<Models.Post>(y => y.UserId);
+                }).Wait();
             });
 
             services.AddSyncControllers(x =>
@@ -117,7 +83,6 @@ namespace OrbitSample.Server.Web
             app.UseAuthentication();
             app.UseDefaultFiles();
             app.UseHsts();
-            app.UseResponseCompression();
             app.UseStaticFiles();
 
             app.UseMvc(routes =>

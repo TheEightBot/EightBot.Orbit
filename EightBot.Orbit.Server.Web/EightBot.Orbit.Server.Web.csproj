@@ -2,6 +2,11 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp2.2</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageIconUrl>https://cdn3.iconfinder.com/data/icons/unigrid-phantom-science-vol-1/60/003_002_moon_orbit_ecuator_sputnik_satellite-128.png</PackageIconUrl>
+    <Company>Eight-Bot</Company>
+    <Authors>Nathan</Authors>
+    <Description>Web / Api components for orbit server framework</Description>
   </PropertyGroup>
 
   <ItemGroup>

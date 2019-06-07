@@ -380,7 +380,7 @@ namespace EightBot.Orbit.Client
                 ?? Enumerable.Empty<SyncInfo<T>>();
         }
 
-        public IEnumerable<SyncInfo<T>> GetSyncHistory<T>(SyncType syncType = SyncType.Latest, string category = null)
+        public IEnumerable<SyncInfo<T>> GetSyncHistory<T>(SyncType syncType = SyncType.Latest, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
             where T : class
         {
             var syncCollection = GetSynchronizableTypeCollection<T>();
@@ -389,7 +389,7 @@ namespace EightBot.Orbit.Client
             {
                 case SyncType.Latest:
                     return syncCollection
-                        .Find(GetItemQuery(category))
+                        .Find(GetItemQuery<T>(category, categorySearch))
                         ?.OrderByDescending(x => x.ModifiedTimestamp)
                         ?.GroupBy(x => x.TypeId)
                         ?.Select(
@@ -408,7 +408,7 @@ namespace EightBot.Orbit.Client
                         ?? Enumerable.Empty<SyncInfo<T>>();
                 case SyncType.FullHistory:
                     return syncCollection
-                        .Find(GetItemQuery(category))
+                        .Find(GetItemQuery<T>(category, categorySearch))
                         ?.OrderByDescending(x => x.ModifiedTimestamp)
                         ?.Select(
                             x =>
@@ -426,6 +426,24 @@ namespace EightBot.Orbit.Client
             }
 
             return Enumerable.Empty<SyncInfo<T>>();
+        }
+
+        public int GetSyncHistoryCount<T>(SyncType syncType = SyncType.Latest, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
+            where T : class
+        {
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+
+            switch (syncType)
+            {
+                case SyncType.Latest:
+                    return syncCollection
+                        .Count(GetItemQuery<T>(category, categorySearch));
+                case SyncType.FullHistory:
+                    return syncCollection
+                        .Count(GetItemQuery<T>(category, categorySearch));
+            }
+
+            return 0;
         }
 
         private bool ItemExistsAndAvailable<T>(T obj, string category = null)
@@ -478,36 +496,54 @@ namespace EightBot.Orbit.Client
             };
         }
 
-        private Query GetItemQuery<T>(T obj, string category = null)
+        private Query GetItemQuery<T>(T obj, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
             where T : class
         {
             var id = GetId<T>(obj);
-            return GetItemQueryWithId<T>(id, category);
+            return GetItemQueryWithId<T>(id, category, categorySearch);
         }
 
-        private Query GetItemQuery<T>(string category = null)
+        private Query GetItemQuery<T>(string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
             where T : class
         {
             return
-                category != null
-                ? Query.And(
-                    Query.EQ(SynchronizableCategory, category),
-                    Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
-                : Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>());
+                categorySearch == CategorySearch.StartsWith
+                    ? Query.And(
+                        Query.StartsWith(SynchronizableCategory, category),
+                        Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
+                    : categorySearch == CategorySearch.Contains
+                        ? Query.And(
+                            Query.Contains(SynchronizableCategory, category),
+                            Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
+                        : category != null
+                            ? Query.And(
+                                Query.EQ(SynchronizableCategory, category),
+                                Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
+                            : Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>());
         }
 
-        private Query GetItemQueryWithId<T>(string id, string category = null)
+        private Query GetItemQueryWithId<T>(string id, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
             where T : class
         {
-            return 
-                category != null
-                ? Query.And(
-                    Query.EQ(SynchronizableTypeIdIndex, id),
-                    Query.EQ(SynchronizableCategory, category),
-                    Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
-                : Query.And(
-                    Query.EQ(SynchronizableTypeIdIndex, id),
-                    Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()));
+            return
+                categorySearch == CategorySearch.StartsWith
+                    ? Query.And(
+                        Query.EQ(SynchronizableTypeIdIndex, id),
+                        Query.StartsWith(SynchronizableCategory, category),
+                        Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
+                    : categorySearch == CategorySearch.Contains
+                        ? Query.And(
+                            Query.EQ(SynchronizableTypeIdIndex, id),
+                            Query.Contains(SynchronizableCategory, category),
+                            Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
+                        : category != null
+                            ? Query.And(
+                                Query.EQ(SynchronizableTypeIdIndex, id),
+                                Query.EQ(SynchronizableCategory, category),
+                                Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
+                            : Query.And(
+                                Query.EQ(SynchronizableTypeIdIndex, id),
+                                Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()));
         }
 
         private BsonValue GetId<T>(T obj)

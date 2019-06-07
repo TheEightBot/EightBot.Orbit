@@ -8,6 +8,8 @@ namespace EightBot.Orbit
 
         public OperationType Operation { get; set; }
 
+        public string Category { get; set; }
+
         public T Value { get; set; }
     }
 }

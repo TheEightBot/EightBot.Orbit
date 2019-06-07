@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -417,6 +417,7 @@ namespace EightBot.Orbit.Client
                                 {
                                     ModifiedOn = x.ModifiedTimestamp,
                                     Operation = (OperationType)x.Operation,
+                                    Category = x.Category,
                                     Value = x.Value
                                 };
                             })

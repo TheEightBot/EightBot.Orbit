@@ -84,6 +84,37 @@ namespace EightBot.Orbit.Client
             return (T)result;
         }
 
+        public async Task<T> Queue<T>(Func<Task<T>> processingTask, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            var queuedTask =
+                new QueuedTask
+                {
+                    TaskRunner =
+                        async _ =>
+                        {
+                            return await processingTask.Invoke().ConfigureAwait(false);
+                        }
+                };
+
+            if (cancellationToken == default(CancellationToken))
+                cancellationToken = CancellationToken.None;
+
+            var queued = await _taskProcessing.SendAsync(queuedTask, cancellationToken).ConfigureAwait(false);
+
+            if (!queued)
+            {
+                throw new QueueFailureException("Unable to queue task");
+            }
+
+            cancellationToken.CheckIfCancelled();
+
+            var result = await queuedTask.CompletionSource.Task.ConfigureAwait(false);
+
+            cancellationToken.CheckIfCancelled();
+
+            return (T)result;
+        }
+
         public async Task Queue<T>(T input, Func<T, Task> processingTask, CancellationToken cancellationToken = default(CancellationToken))
         {
             var queuedTask =

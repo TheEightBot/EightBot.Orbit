@@ -31,9 +31,9 @@ namespace OrbitSample
             var httpClient = new HttpClient();
             var usersJson = await httpClient.GetStringAsync("https://jsonplaceholder.typicode.com/users");
             var users = JsonConvert.DeserializeObject<IEnumerable<User>>(usersJson);
-            client.PopulateCache(users);
+            await client.PopulateCache(users);
 
-            var cachedUsers = client.GetAllLatest<User>();
+            var cachedUsers = await client.GetAllLatest<User>();
 
             listView.ItemsSource = cachedUsers;
         }

@@ -50,16 +50,16 @@ namespace OrbitSample.Server.Web
             var cosmosDataBaseId = this.Configuration.GetConnectionString("OrbitSampleAzureCosmosDataBaseId");
 
             // TODO: Clean this up. Find better async await ConfigureServices
-            services.AddDefaultSyncCosmosDataClient(cosmosUri, cosmosAuhKey, cosmosDataBaseId, x =>
+            services.AddDefaultOrbitSyncCosmosDataClient(cosmosUri, cosmosAuhKey, cosmosDataBaseId, x =>
             {
                 Task.Run(async () =>
                 {
-                    await x.EnsureCollectionAsync<Models.User>(y => y.Company.Name);
-                    await x.EnsureCollectionAsync<Models.Post>(y => y.UserId);
+                    await x.EnsureCollectionAsync<Models.User>(y=> y.Username, y => y.Company.Name);
+                    await x.EnsureCollectionAsync<Models.Post>(y => y.UserId, y => y.UserId);
                 }).Wait();
             });
 
-            services.AddSyncControllers(x =>
+            services.AddOrbitSyncControllers(x =>
             {
                 x.EnsureSyncController<Models.User>();
                 x.EnsureSyncController<Models.Post>(false);

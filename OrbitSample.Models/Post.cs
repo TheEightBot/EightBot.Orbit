@@ -5,8 +5,8 @@ namespace OrbitSample.Models
 {
     public partial class Post
     {
-        [JsonProperty("id")]
-        public string Id { get; set; }
+        //[JsonProperty("id")]
+        //public string Id { get; set; }
 
         [JsonProperty("userId")]
         public string UserId { get; set; }

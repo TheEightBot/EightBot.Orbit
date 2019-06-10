@@ -24,14 +24,17 @@ namespace EightBot.Orbit.Server.Data
 
             if (syncables != null && syncables.Count() > 0)
             {
-                var documentIdentifiers = new Dictionary<string, string>();
+                var documentIdentifiers = new Dictionary<string, object>();
                 for (var i = 0; i < syncables.Count(); i++)
                 {
                     var syncable = syncables.ElementAt(i);
 
-                    var id = this.DataClient.GetId(syncable);
-                    var partitionKey = this.DataClient.GetPartitionKey(syncable);
-                    if (!String.IsNullOrWhiteSpace(id) && new Guid(id) != Guid.Empty)
+                    var id = this.DataClient.GetId(syncable.Value);
+                    var isGuid = Guid.TryParse(id, out var idGuid);
+
+                    var partitionKey = this.DataClient.GetPartitionKey(syncable.Value);
+
+                    if (!String.IsNullOrWhiteSpace(id) && (!isGuid || (isGuid && idGuid != Guid.Empty)))
                     {
                         if (syncable.Operation == OperationType.Create || syncable.Operation == OperationType.Update)
                         {
@@ -63,7 +66,7 @@ namespace EightBot.Orbit.Server.Data
                     }
                 }
 
-                foreach (KeyValuePair<string, string> entry in documentIdentifiers)
+                foreach (KeyValuePair<string, object> entry in documentIdentifiers)
                 {
                     var existingDocument = await this.DataClient.Document<T>().GetAsync(entry.Key, entry.Value).ConfigureAwait(false);
                     if (existingDocument != null)

@@ -48,7 +48,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public void OrbitClient_Create_ShouldBeSuccessful()
+        public async Task OrbitClient_Create_ShouldBeSuccessful()
         {
             var testFile = 
                 new TestClassA 
@@ -57,12 +57,12 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 42
                 };
 
-            var result = _client.Create(testFile);
+            var result = await _client.Create(testFile);
             Assert.IsTrue(result);
         }
 
         [TestMethod]
-        public void OrbitClient_CreateWithCategory_ShouldBeSuccessful()
+        public async Task OrbitClient_CreateWithCategory_ShouldBeSuccessful()
         {
             var testFile =
                 new TestClassA
@@ -71,12 +71,12 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 42
                 };
 
-            var result = _client.Create(testFile, "category");
+            var result = await _client.Create(testFile, "category");
             Assert.IsTrue(result);
         }
 
         [TestMethod]
-        public void OrbitClient_CreateWithObjectThatUsesFuncProperty_ShouldBeSuccessful()
+        public async Task OrbitClient_CreateWithObjectThatUsesFuncProperty_ShouldBeSuccessful()
         {
             var testFile =
                 new TestClassD
@@ -85,12 +85,12 @@ namespace EightBot.Orbit.Tests
                     DoubleProperty = 42d
                 };
 
-            var result = _client.Create(testFile);
+            var result = await _client.Create(testFile);
             Assert.IsTrue(result);
         }
 
         [TestMethod]
-        public void OrbitClient_CreateWithObjectThatUsesFuncPropertyWithCategory_ShouldBeSuccessful()
+        public async Task OrbitClient_CreateWithObjectThatUsesFuncPropertyWithCategory_ShouldBeSuccessful()
         {
             var testFile =
                 new TestClassD
@@ -99,12 +99,12 @@ namespace EightBot.Orbit.Tests
                     DoubleProperty = 42d
                 };
 
-            var result = _client.Create(testFile, "category");
+            var result = await _client.Create(testFile, "category");
             Assert.IsTrue(result);
         }
 
         [TestMethod]
-        public void OrbitClient_InsertAndGetLatest_ShouldFindMatch()
+        public async Task OrbitClient_InsertAndGetLatest_ShouldFindMatch()
         {
             var testFile =
                 new TestClassA
@@ -113,13 +113,13 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 42
                 };
 
-            _client.Create(testFile);
-            var found = _client.GetLatest(testFile);
+            await _client.Create(testFile);
+            var found = await _client.GetLatest(testFile);
             Assert.IsTrue(testFile.IntProperty == found.IntProperty);
         }
 
         [TestMethod]
-        public void OrbitClient_InsertAndGetLatestWithCategory_ShouldFindMatch()
+        public async Task OrbitClient_InsertAndGetLatestWithCategory_ShouldFindMatch()
         {
             var category = "category";
 
@@ -130,13 +130,13 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 42
                 };
 
-            _client.Create(testFile, category);
-            var found = _client.GetLatest(testFile, category);
+            await _client.Create(testFile, category);
+            var found = await _client.GetLatest(testFile, category);
             Assert.IsTrue(testFile.IntProperty == found.IntProperty);
         }
 
         [TestMethod]
-        public void OrbitClient_InsertWithObjectThatUsesFuncPropertyAndGetLatest_ShouldFindMatch()
+        public async Task OrbitClient_InsertWithObjectThatUsesFuncPropertyAndGetLatest_ShouldFindMatch()
         {
             var testFile =
                 new TestClassD
@@ -145,13 +145,13 @@ namespace EightBot.Orbit.Tests
                     DoubleProperty = 42d
                 };
 
-            _client.Create(testFile);
-            var found = _client.GetLatest(testFile);
+            await _client.Create(testFile);
+            var found = await _client.GetLatest(testFile);
             Assert.IsTrue(testFile.FloatProperty == found.FloatProperty);
         }
 
         [TestMethod]
-        public void OrbitClient_InsertWithObjectThatUsesFuncPropertyAndGetLatestWithCategory_ShouldFindMatch()
+        public async Task OrbitClient_InsertWithObjectThatUsesFuncPropertyAndGetLatestWithCategory_ShouldFindMatch()
         {
             var category = "category";
 
@@ -162,13 +162,13 @@ namespace EightBot.Orbit.Tests
                     DoubleProperty = 42d
                 };
 
-            _client.Create(testFile, category);
-            var found = _client.GetLatest(testFile, category);
+            await _client.Create(testFile, category);
+            var found = await _client.GetLatest(testFile, category);
             Assert.IsTrue(testFile.FloatProperty == found.FloatProperty);
         }
 
         [TestMethod]
-        public void OrbitClient_InsertMultipleAndGetAll_CountShouldMatch()
+        public async Task OrbitClient_InsertMultipleAndGetAll_CountShouldMatch()
         {
             var expected = 2;
 
@@ -186,14 +186,14 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 84
                 };
 
-            _client.Create(testFile1);
-            _client.Update(testFile2);
-            var found = _client.GetSyncHistory<TestClassA>(testFile1.StringProperty);
+            await _client.Create(testFile1);
+            await _client.Update(testFile2);
+            var found = await _client.GetSyncHistory<TestClassA>(testFile1.StringProperty);
             Assert.IsTrue(found.Count() == expected);
         }
 
         [TestMethod]
-        public void OrbitClient_InsertMultipleAndGetAllWithCategory_CountShouldMatch()
+        public async Task OrbitClient_InsertMultipleAndGetAllWithCategory_CountShouldMatch()
         {
             var expected = 2;
 
@@ -213,14 +213,14 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 84
                 };
 
-            _client.Create(testFile1, category);
-            _client.Update(testFile2, category);
-            var found = _client.GetSyncHistory<TestClassA>(testFile1.StringProperty, category);
+            await _client.Create(testFile1, category);
+            await _client.Update(testFile2, category);
+            var found = await _client.GetSyncHistory<TestClassA>(testFile1.StringProperty, category);
             Assert.IsTrue(found.Count() == expected);
         }
 
         [TestMethod]
-        public void OrbitClient_InsertMultipleAndQuery_DoesGetLatest()
+        public async Task OrbitClient_InsertMultipleAndQuery_DoesGetLatest()
         {
             var testFile1 =
                 new TestClassA
@@ -243,17 +243,17 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 168
                 };
 
-            _client.Upsert(testFile1);
-            _client.Upsert(testFile2);
-            _client.Upsert(testFile3);
+            await _client.Upsert(testFile1);
+            await _client.Upsert(testFile2);
+            await _client.Upsert(testFile3);
 
-            var found = _client.GetLatest(testFile3);
+            var found = await _client.GetLatest(testFile3);
 
             Assert.IsTrue(found.IntProperty == testFile3.IntProperty);
         }
 
         [TestMethod]
-        public void OrbitClient_InsertMultipleAndQueryWithCategory_DoesGetLatest()
+        public async Task OrbitClient_InsertMultipleAndQueryWithCategory_DoesGetLatest()
         {
             var category = "category";
 
@@ -278,17 +278,17 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 168
                 };
 
-            _client.Upsert(testFile1, category);
-            _client.Upsert(testFile2, category);
-            _client.Upsert(testFile3, category);
+            await _client.Upsert(testFile1, category);
+            await _client.Upsert(testFile2, category);
+            await _client.Upsert(testFile3, category);
 
-            var found = _client.GetLatest(testFile3, category);
+            var found = await _client.GetLatest(testFile3, category);
 
             Assert.IsTrue(found.IntProperty == testFile3.IntProperty);
         }
 
         [TestMethod]
-        public void OrbitClient_InsertAndDeleteAndInsert_ShouldNotInsert()
+        public async Task OrbitClient_InsertAndDeleteAndInsert_ShouldNotInsert()
         {
             var expectedResult = false;
 
@@ -313,15 +313,15 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 168
                 };
 
-            _client.Upsert(testFile1);
-            _client.Delete(testFile2);
-            var upsertResult = _client.Upsert(testFile3);
+            await _client.Upsert(testFile1);
+            await _client.Delete(testFile2);
+            var upsertResult = await _client.Upsert(testFile3);
 
             Assert.IsTrue(expectedResult == upsertResult);
         }
 
         [TestMethod]
-        public void OrbitClient_InsertAndDeleteAndInsertWithCategory_ShouldNotInsert()
+        public async Task OrbitClient_InsertAndDeleteAndInsertWithCategory_ShouldNotInsert()
         {
             var expectedResult = false;
 
@@ -348,15 +348,15 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 168
                 };
 
-            _client.Upsert(testFile1, category);
-            _client.Delete(testFile2, category);
-            var upsertResult = _client.Upsert(testFile3, category);
+            await _client.Upsert(testFile1, category);
+            await _client.Delete(testFile2, category);
+            var upsertResult = await _client.Upsert(testFile3, category);
 
             Assert.IsTrue(expectedResult == upsertResult);
         }
 
         [TestMethod]
-        public void OrbitClient_InsertMultipleWithSameKey_ShouldFindRightTypes()
+        public async Task OrbitClient_InsertMultipleWithSameKey_ShouldFindRightTypes()
         {
             var id = "Test Value";
 
@@ -374,18 +374,18 @@ namespace EightBot.Orbit.Tests
                     DoubleProperty = 42d
                 };
                 
-            _client.Upsert(testFile1);
-            _client.Upsert(testFile2);
+            await _client.Upsert(testFile1);
+            await _client.Upsert(testFile2);
 
-            var foundA = _client.GetLatest<TestClassA>(id);
-            var foundB = _client.GetLatest<TestClassB>(id);
+            var foundA = await _client.GetLatest<TestClassA>(id);
+            var foundB = await _client.GetLatest<TestClassB>(id);
 
             Assert.IsTrue(foundA.IntProperty == testFile1.IntProperty);
             Assert.IsTrue(foundB.DoubleProperty == testFile2.DoubleProperty);
         }
 
         [TestMethod]
-        public void OrbitClient_InsertMultipleWithSameKeyWithCategory_ShouldFindRightTypes()
+        public async Task OrbitClient_InsertMultipleWithSameKeyWithCategory_ShouldFindRightTypes()
         {
             var id = "Test Value";
 
@@ -405,11 +405,11 @@ namespace EightBot.Orbit.Tests
                     DoubleProperty = 42d
                 };
 
-            _client.Upsert(testFile1, category);
-            _client.Upsert(testFile2, category);
+            await _client.Upsert(testFile1, category);
+            await _client.Upsert(testFile2, category);
 
-            var foundA = _client.GetLatest<TestClassA>(id, category);
-            var foundB = _client.GetLatest<TestClassB>(id, category);
+            var foundA = await _client.GetLatest<TestClassA>(id, category);
+            var foundB = await _client.GetLatest<TestClassB>(id, category);
 
             Assert.IsTrue(foundA.IntProperty == testFile1.IntProperty);
             Assert.IsTrue(foundB.DoubleProperty == testFile2.DoubleProperty);
@@ -461,8 +461,8 @@ namespace EightBot.Orbit.Tests
 
                 await Task.WhenAll(insert1Test, insert2Test);
 
-                var found1 = _client.GetLatest<TestClassA>(id1);
-                var found2 = _client.GetLatest<TestClassA>(id2);
+                var found1 = await _client.GetLatest<TestClassA>(id1);
+                var found2 = await _client.GetLatest<TestClassA>(id2);
 
                 Assert.IsTrue(found1.IntProperty == max);
                 Assert.IsTrue(found2.IntProperty == max);
@@ -474,7 +474,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public void OrbitClient_BulkInsertAndUpdate_ShouldGetNewValue()
+        public async Task OrbitClient_BulkInsertAndUpdate_ShouldGetNewValue()
         {
 
             var testObjects = 
@@ -484,23 +484,23 @@ namespace EightBot.Orbit.Tests
 
             var generatedTestObjects = testObjects.GenerateBetween(100, 100);
 
-            var populated = _client.PopulateCache(generatedTestObjects);
+            var populated = await _client.PopulateCache(generatedTestObjects);
 
             Assert.IsTrue(populated);
 
             var original = generatedTestObjects[49];
 
-            var foundObject = _client.GetLatest<TestClassA>(original.StringProperty);
+            var foundObject = await _client.GetLatest<TestClassA>(original.StringProperty);
 
             Assert.AreEqual(foundObject.IntProperty, original.IntProperty);
 
             foundObject.IntProperty = foundObject.IntProperty * 2;
 
-            var upsertResult = _client.Upsert(foundObject);
+            var upsertResult = await _client.Upsert(foundObject);
 
             Assert.IsTrue(upsertResult);
 
-            var latest = _client.GetAllLatest<TestClassA>();
+            var latest = await _client.GetAllLatest<TestClassA>();
 
             var updated = latest.FirstOrDefault(x => x.StringProperty == original.StringProperty);
 
@@ -508,7 +508,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public void OrbitClient_BulkInsertAndUpdateWithCategory_ShouldGetNewValue()
+        public async Task OrbitClient_BulkInsertAndUpdateWithCategory_ShouldGetNewValue()
         {
 
             var testObjects =
@@ -520,23 +520,23 @@ namespace EightBot.Orbit.Tests
 
             var generatedTestObjects = testObjects.GenerateBetween(100, 100);
 
-            var populated = _client.PopulateCache(generatedTestObjects, category);
+            var populated = await _client.PopulateCache(generatedTestObjects, category);
 
             Assert.IsTrue(populated);
 
             var original = generatedTestObjects[49];
 
-            var foundObject = _client.GetLatest<TestClassA>(original.StringProperty, category);
+            var foundObject = await _client.GetLatest<TestClassA>(original.StringProperty, category);
 
             Assert.AreEqual(foundObject.IntProperty, original.IntProperty);
 
             foundObject.IntProperty = foundObject.IntProperty * 2;
 
-            var upsertResult = _client.Upsert(foundObject, category);
+            var upsertResult = await _client.Upsert(foundObject, category);
 
             Assert.IsTrue(upsertResult);
 
-            var latest = _client.GetAllLatest<TestClassA>(category);
+            var latest = await _client.GetAllLatest<TestClassA>(category);
 
             var updated = latest.FirstOrDefault(x => x.StringProperty == original.StringProperty);
 
@@ -544,7 +544,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public void OrbitClient_InsertItemsWithCategories_ShouldGetRightItemForCategory()
+        public async Task OrbitClient_InsertItemsWithCategories_ShouldGetRightItemForCategory()
         {
             var category1 = "category1";
             var category2 = "category2";
@@ -563,24 +563,24 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 84
                 };
 
-            _client.Upsert(testFile1, category1);
-            _client.Upsert(testFile2, category2);
+            await _client.Upsert(testFile1, category1);
+            await _client.Upsert(testFile2, category2);
 
-            var testFile1InCategory2 = _client.GetLatest<TestClassA>(testFile1.StringProperty, category2);
-            var testFile2InCategory1 = _client.GetLatest<TestClassA>(testFile2.StringProperty, category1);
+            var testFile1InCategory2 = await _client.GetLatest<TestClassA>(testFile1.StringProperty, category2);
+            var testFile2InCategory1 = await _client.GetLatest<TestClassA>(testFile2.StringProperty, category1);
 
             Assert.IsNull(testFile1InCategory2);
             Assert.IsNull(testFile2InCategory1);
 
-            var testFile1InCategory1 = _client.GetLatest<TestClassA>(testFile1.StringProperty, category1);
-            var testFile2InCategory2 = _client.GetLatest<TestClassA>(testFile2.StringProperty, category2);
+            var testFile1InCategory1 = await _client.GetLatest<TestClassA>(testFile1.StringProperty, category1);
+            var testFile2InCategory2 = await _client.GetLatest<TestClassA>(testFile2.StringProperty, category2);
 
             Assert.IsNotNull(testFile1InCategory1);
             Assert.IsNotNull(testFile2InCategory2);
         }
 
         [TestMethod]
-        public void OrbitClient_InsertItemsWithCategories_ShouldFindCategories()
+        public async Task OrbitClient_InsertItemsWithCategories_ShouldFindCategories()
         {
             var category1 = "category1";
             var category2 = "category2";
@@ -601,10 +601,10 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 84
                 };
 
-            _client.Upsert(testFile1, category1);
-            _client.Upsert(testFile2, category2);
+            await _client.Upsert(testFile1, category1);
+            await _client.Upsert(testFile2, category2);
 
-            var categories = _client.GetCategories<TestClassA>().ToList();
+            var categories = (await _client.GetCategories<TestClassA>()).ToList();
 
             Assert.IsTrue(categories.Contains(category1));
             Assert.IsTrue(categories.Contains(category2));
@@ -612,7 +612,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public void OrbitClient_PopulateCacheAndInsertItemsWithCategories_ShouldFindCategories()
+        public async Task OrbitClient_PopulateCacheAndInsertItemsWithCategories_ShouldFindCategories()
         {
             var category1 = "category1";
             var category2 = "category2";
@@ -633,10 +633,10 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 84
                 };
 
-            _client.PopulateCache(new[] { testFile1 }, category1);
-            _client.Upsert(testFile2, category2);
+            await _client.PopulateCache(new[] { testFile1 }, category1);
+            await _client.Upsert(testFile2, category2);
 
-            var categories = _client.GetCategories<TestClassA>().ToList();
+            var categories = (await _client.GetCategories<TestClassA>()).ToList();
 
             Assert.IsTrue(categories.Contains(category1));
             Assert.IsTrue(categories.Contains(category2));

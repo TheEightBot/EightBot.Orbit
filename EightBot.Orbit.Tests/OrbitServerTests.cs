@@ -55,63 +55,360 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public async Task OrbitServer_OrbitCosmosClient_Insert_One()
+        public async Task OrbitServer_OrbitCosmosClient_Create_Update_Delete_One()
         {
+            var count = 1;
+
+            // CREATE
             var syncables = new List<SyncInfo<TestClassA>>();
-            for (var i = 0; i < 1; i++)
+            for (var i = 0; i < count; i++)
             {
                 syncables.Add(new SyncInfo<TestClassA>()
                 {
                     Operation = OperationType.Create,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"One{i}", IntProperty = 100 }
+                    Value = new TestClassA() { StringProperty = $"One{i}", IntProperty = 100, DoubleProperty = 1.00 }
+                });
+            }
+
+            var results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).StringProperty == "One0");
+            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.00);
+
+            // UPDATE
+            syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Update,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"One{i}", IntProperty = 100, DoubleProperty = 1.01 }
+                });
+            }
+
+            results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).StringProperty == "One0");
+            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.01);
+
+            // DELETE
+            syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Delete,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"One{i}", IntProperty = 100, DoubleProperty = 1.02 }
+                });
+            }
+
+            results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == 0);
+        }
+
+        [TestMethod]
+        public async Task OrbitServer_OrbitCosmosClient_Create_Update_Delete_OneHundred()
+        {
+            var count = 100;
+
+            // CREATE
+            var syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Create,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"OneHundred{i}", IntProperty = 100, DoubleProperty = 1.00 }
+                });
+            }
+
+            var results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).StringProperty == "OneHundred0");
+            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.00);
+
+            Assert.IsTrue(results.ElementAt(99).StringProperty == "OneHundred99");
+            Assert.IsTrue(results.ElementAt(99).IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(99).DoubleProperty == 1.00);
+
+            // UPDATE
+            syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Create,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"OneHundred{i}", IntProperty = 100, DoubleProperty = 1.01 }
+                });
+            }
+
+            results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).StringProperty == "OneHundred0");
+            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.01);
+
+            Assert.IsTrue(results.ElementAt(99).StringProperty == "OneHundred99");
+            Assert.IsTrue(results.ElementAt(99).IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(99).DoubleProperty == 1.01);
+
+            // DELETE
+            syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Delete,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"OneHundred{i}", IntProperty = 100, DoubleProperty = 1.02 }
+                });
+            }
+
+            results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == 0);
+        }
+
+        [TestMethod]
+        public async Task OrbitServer_OrbitCosmosClient_Create_Update_Delete_OneThousand()
+        {
+            var count = 1000;
+
+            // CREATE
+            var syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Create,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"OneThousand{i}", IntProperty = 100, DoubleProperty = 1.00 }
+                });
+            }
+
+            var results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).StringProperty == "OneThousand0");
+            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.00);
+
+            Assert.IsTrue(results.ElementAt(999).StringProperty == "OneThousand999");
+            Assert.IsTrue(results.ElementAt(999).IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(999).DoubleProperty == 1.00);
+
+            // UPDATE
+            syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Create,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"OneThousand{i}", IntProperty = 100, DoubleProperty = 1.01 }
+                });
+            }
+
+            results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).StringProperty == "OneThousand0");
+            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.01);
+
+            Assert.IsTrue(results.ElementAt(999).StringProperty == "OneThousand999");
+            Assert.IsTrue(results.ElementAt(999).IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(999).DoubleProperty == 1.01);
+
+            // DELETE
+            syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Delete,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"OneThousand{i}", IntProperty = 100, DoubleProperty = 1.02 }
+                });
+            }
+
+            results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == 0);
+        }
+
+        [TestMethod]
+        public async Task OrbitServer_OrbitCosmosClient_Update_Newer()
+        {
+            var count = 1;
+
+            // CREATE
+            var syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Create,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"UpdateNewer{i}", IntProperty = 100, DoubleProperty = 1.00 }
+                });
+            }
+
+            var results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            var lastupDatedTime = syncables[0].ModifiedOn + 1000;
+
+            // UPDATE
+            syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Update,
+                    ModifiedOn = lastupDatedTime,
+                    Value = new TestClassA() { StringProperty = $"UpdateNewer{i}", IntProperty = 100, DoubleProperty = 999.99 }
+                });
+            }
+
+            results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).StringProperty == "UpdateNewer0");
+            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 999.99);
+
+            // DELETE
+            syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Delete,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"UpdateNewer{i}", IntProperty = 100, DoubleProperty = 999.99 }
+                });
+            }
+
+            results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == 0);
+        }
+
+        [TestMethod]
+        public async Task OrbitServer_OrbitCosmosClient_Update_Older()
+        {
+            var count = 1;
+
+            // CREATE
+            var syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Create,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"UpdateOlder{i}", IntProperty = 100, DoubleProperty = 1.00 }
+                });
+            }
+
+            var results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            var lastupDatedTime = syncables[0].ModifiedOn - 1000;
+
+            // UPDATE
+            syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Update,
+                    ModifiedOn = lastupDatedTime,
+                    Value = new TestClassA() { StringProperty = $"UpdateOlder{i}", IntProperty = 100, DoubleProperty = 999.99 }
+                });
+            }
+
+            results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).StringProperty == "UpdateOlder0");
+            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.00);
+
+            // DELETE
+            syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Delete,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"UpdateOlder{i}", IntProperty = 100, DoubleProperty = 999.99 }
+                });
+            }
+
+            results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == 0);
+        }
+
+        [TestMethod]
+        public async Task OrbitServer_OrbitCosmosClient_Delete_NotFound()
+        {
+            var count = 1;
+
+            // DELETE
+            var syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Delete,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"DeleteNotFound{i}", IntProperty = 100, DoubleProperty = 999.99 }
                 });
             }
 
             var results = await this.OrbitDataClient.Sync(syncables);
 
             Assert.IsTrue(results.Count() == 1);
-
-            Assert.IsTrue(results.ElementAt(0).StringProperty == "One0");
-            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
         }
 
-        [TestMethod]
-        public async Task OrbitServer_OrbitCosmosClient_Insert_OneHundred()
-        {
-            var syncables = new List<SyncInfo<TestClassA>>();
-            for (var i = 0; i < 100; i++)
-            {
-                syncables.Add(new SyncInfo<TestClassA>()
-                {
-                    Operation = OperationType.Create,
-                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"OneHundred{i}", IntProperty = 100 }
-                });
-            }
 
-            var results = await this.OrbitDataClient.Sync(syncables);
 
-            Assert.IsTrue(results.Count() == 100);
 
-            Assert.IsTrue(results.ElementAt(0).StringProperty == "OneHundred0");
-            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
-
-            Assert.IsTrue(results.ElementAt(99).StringProperty == "OneHundred99");
-            Assert.IsTrue(results.ElementAt(99).IntProperty == 100);
-        }
-
-        [TestMethod]
-        public void OrbitServer_OrbitCosmosClient_Insert_OneThousand()
-        {
-
-        }
 
         public class TestClassA
         {
             public string StringProperty { get; set; }
 
             public int IntProperty { get; set; }
+
+            public double DoubleProperty { get; set; }
         }
 
 

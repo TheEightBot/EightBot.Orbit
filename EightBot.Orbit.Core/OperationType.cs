@@ -5,6 +5,10 @@ namespace EightBot.Orbit
     {
         Create,
         Update,
-        Delete
+        Delete,
+
+        Created,
+        Updated,
+        Deleted,
     }
 }

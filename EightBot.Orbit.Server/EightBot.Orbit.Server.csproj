@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EightBot.Nebula.DocumentDb" Version="1.2.2" />
+    <PackageReference Include="EightBot.Nebula.DocumentDb" Version="1.2.4" />
   </ItemGroup>
 
   <ItemGroup>

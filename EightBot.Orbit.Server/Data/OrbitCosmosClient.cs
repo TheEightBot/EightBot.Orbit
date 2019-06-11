@@ -1,10 +1,7 @@
 ﻿using EightBot.Nebula.DocumentDb;
-using Microsoft.Azure.Documents;
-using Microsoft.Azure.Documents.Client;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Threading.Tasks;
 
 namespace EightBot.Orbit.Server.Data
@@ -38,21 +35,17 @@ namespace EightBot.Orbit.Server.Data
                     {
                         if (syncable.Operation == OperationType.Create || syncable.Operation == OperationType.Update)
                         {
-                            var existingDocument = await this.DataClient.Document<T>().GetAsync(id, partitionKey).ConfigureAwait(false);
-                            if (existingDocument == null)
+                            var existingDocument = await this.DataClient.Document<T>().GetWithBaseAsync(id, partitionKey).ConfigureAwait(false);
+                            if (existingDocument.Document == null)
                                 documentIdentifiers.Add(await this.DataClient.Document<T>().UpsertAsync(syncable.Value).ConfigureAwait(false), partitionKey);
                             else
                             {
                                 var syncableLastModified = DateTimeOffset.FromUnixTimeMilliseconds(syncable.ModifiedOn).UtcDateTime;
-                                var serverLastModified = DateTime.UtcNow;
-
-                                var documentResponse = await this.DataClient.Client.ReadDocumentAsync(UriFactory.CreateDocumentUri(this.DataClient.DatabaseId, typeof(T).Name.Pluralize(), id), new RequestOptions() { PartitionKey = new PartitionKey(partitionKey) }).ConfigureAwait(false);
-                                if (documentResponse != null && documentResponse.Resource != null)
-                                    serverLastModified = documentResponse.Resource.Timestamp;
+                                var serverLastModified = existingDocument.BaseDocument.Timestamp;
 
                                 // Server Wins!
                                 if (serverLastModified > syncableLastModified)
-                                    payload.Add(existingDocument);
+                                    payload.Add(existingDocument.Document);
                                 else
                                     documentIdentifiers.Add(await this.DataClient.Document<T>().UpsertAsync(syncable.Value).ConfigureAwait(false), partitionKey);
                             }

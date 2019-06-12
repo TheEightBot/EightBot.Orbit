@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 
 namespace EightBot.Orbit.Server.Data
 {
-    public class OrbitCosmosClient : IOrbitDataClient
+    public class OrbitCosmosDataClient : IOrbitDataClient
     {
         private readonly IDataClient DataClient = null;
 
-        public OrbitCosmosClient(IDataClient dataClient)
+        public OrbitCosmosDataClient(IDataClient dataClient)
         {
             this.DataClient = dataClient;
         }

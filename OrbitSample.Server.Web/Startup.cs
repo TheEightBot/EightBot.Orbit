@@ -65,7 +65,7 @@ namespace OrbitSample.Server.Web
                 x.EnsureSyncController<Models.Post>(false);
             });
 
-            services.AddSingleton<IOrbitDataClient, OrbitCosmosClient>();
+            services.AddSingleton<IOrbitDataClient, OrbitCosmosDataClient>();
 
             services.AddRouteAnalyzer();
         }

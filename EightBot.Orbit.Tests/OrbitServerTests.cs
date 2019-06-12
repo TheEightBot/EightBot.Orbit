@@ -45,7 +45,7 @@ namespace EightBot.Orbit.Tests
 
             await dataClient.EnsureCollectionAsync<TestClassA>(x => x.StringProperty, x => x.IntProperty);
 
-            this.OrbitDataClient = new OrbitCosmosClient(dataClient);
+            this.OrbitDataClient = new OrbitCosmosDataClient(dataClient);
         }
 
         [TestCleanup]

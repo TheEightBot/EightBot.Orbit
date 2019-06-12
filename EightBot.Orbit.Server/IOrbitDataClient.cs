@@ -6,6 +6,6 @@ namespace EightBot.Orbit.Server
 {
     public interface IOrbitDataClient
     {
-        Task<IEnumerable<SyncedInfo<T>>> Sync<T>(IEnumerable<SyncInfo<T>> syncables);
+        Task<IEnumerable<ServerSyncInfo<T>>> Sync<T>(IEnumerable<ClientSyncInfo<T>> syncables);
     }
 }

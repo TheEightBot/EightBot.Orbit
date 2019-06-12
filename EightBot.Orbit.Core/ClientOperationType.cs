@@ -1,15 +1,10 @@
 ﻿using System;
 namespace EightBot.Orbit
 {
-    public enum OperationType
+    public enum ClientOperationType
     {
         Create,
         Update,
         Delete,
-
-        Created,
-        Updated,
-        Deleted,
-        NotModified,
     }
 }

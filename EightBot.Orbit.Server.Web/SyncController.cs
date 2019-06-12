@@ -17,7 +17,7 @@ namespace EightBot.Orbit.Server.Web
         }
 
         [HttpPost("")]
-        public async Task<ActionResult<IEnumerable<T>>> Post([FromBody]IEnumerable<SyncInfo<T>> syncables)
+        public async Task<ActionResult<IEnumerable<T>>> Post([FromBody]IEnumerable<ClientSyncInfo<T>> syncables)
         {
             return Ok(await this.DataClient.Sync(syncables));
         }

@@ -10,5 +10,6 @@ namespace EightBot.Orbit
         Created,
         Updated,
         Deleted,
+        NotModified,
     }
 }

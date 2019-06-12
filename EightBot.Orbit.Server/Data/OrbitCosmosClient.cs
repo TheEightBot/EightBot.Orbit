@@ -15,13 +15,12 @@ namespace EightBot.Orbit.Server.Data
             this.DataClient = dataClient;
         }
 
-        public async Task<IEnumerable<T>> Sync<T>(IEnumerable<SyncInfo<T>> syncables)
+        public async Task<IEnumerable<SyncedInfo<T>>> Sync<T>(IEnumerable<SyncInfo<T>> syncables)
         {
-            var payload = new List<T>();
+            var payload = new List<SyncedInfo<T>>();
 
             if (syncables != null && syncables.Count() > 0)
             {
-                var documentIdentifiers = new Dictionary<string, object>();
                 for (var i = 0; i < syncables.Count(); i++)
                 {
                     var syncable = syncables.ElementAt(i);
@@ -31,13 +30,13 @@ namespace EightBot.Orbit.Server.Data
 
                     var partitionKey = this.DataClient.GetPartitionKey(syncable.Value);
 
-                    if (!String.IsNullOrWhiteSpace(id) && (!isGuid || (isGuid && idGuid != Guid.Empty)))
+                    if (!isGuid || (isGuid && idGuid != Guid.Empty))
                     {
                         if (syncable.Operation == OperationType.Create || syncable.Operation == OperationType.Update)
                         {
                             var existingDocument = await this.DataClient.Document<T>().GetWithBaseAsync(id, partitionKey).ConfigureAwait(false);
                             if (existingDocument.Document == null)
-                                documentIdentifiers.Add(await this.DataClient.Document<T>().UpsertAsync(syncable.Value).ConfigureAwait(false), partitionKey);
+                                await AddToPayload(await this.DataClient.Document<T>().UpsertAsync(syncable.Value).ConfigureAwait(false), partitionKey, OperationType.Created, default(T), payload);
                             else
                             {
                                 var syncableLastModified = DateTimeOffset.FromUnixTimeMilliseconds(syncable.ModifiedOn).UtcDateTime;
@@ -45,29 +44,42 @@ namespace EightBot.Orbit.Server.Data
 
                                 // Server Wins!
                                 if (serverLastModified > syncableLastModified)
-                                    payload.Add(existingDocument.Document);
+                                    await AddToPayload(id, partitionKey, OperationType.Updated, existingDocument.Document, payload);
                                 else
-                                    documentIdentifiers.Add(await this.DataClient.Document<T>().UpsertAsync(syncable.Value).ConfigureAwait(false), partitionKey);
+                                    await AddToPayload(await this.DataClient.Document<T>().UpsertAsync(syncable.Value).ConfigureAwait(false), partitionKey, OperationType.Updated, default(T), payload);
                             }
                         }
                         else if (syncables.ElementAt(i).Operation == OperationType.Delete)
                         {
                             var succes = await this.DataClient.Document<T>().DeleteAsync(id, partitionKey).ConfigureAwait(false);
-                            if (!succes)
-                                payload.Add(syncable.Value);
+                            if (succes)
+                                await AddToPayload(id, partitionKey, OperationType.Deleted, default(T), payload);
+                            else
+                                await AddToPayload(id, partitionKey, OperationType.NotModified, default(T), payload);
                         }
                     }
-                }
-
-                foreach (KeyValuePair<string, object> entry in documentIdentifiers)
-                {
-                    var existingDocument = await this.DataClient.Document<T>().GetAsync(entry.Key, entry.Value).ConfigureAwait(false);
-                    if (existingDocument != null)
-                        payload.Add(existingDocument);
+                    else
+                        await AddToPayload(id, partitionKey, OperationType.NotModified, default(T), payload);
                 }
             }
 
             return payload;
+        }
+
+        private async Task AddToPayload<T>(string id, object partitionKey, OperationType operation, T existingDocument, List<SyncedInfo<T>> payload)
+        {
+            var payloadItem = new SyncedInfo<T>() { Id = id, Operation = operation };
+
+            if (existingDocument == null && payloadItem.Operation == OperationType.Created || payloadItem.Operation == OperationType.Updated)
+            {
+                existingDocument = await this.DataClient.Document<T>().GetAsync(id, partitionKey).ConfigureAwait(false);
+                if (existingDocument != null)
+                    payloadItem.Value = existingDocument;
+            }
+
+            payloadItem.Value = existingDocument;
+
+            payload.Add(payloadItem);
         }
     }
 }

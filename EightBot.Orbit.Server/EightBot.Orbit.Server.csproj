@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EightBot.Nebula.DocumentDb" Version="1.2.4" />
+    <PackageReference Include="EightBot.Nebula.DocumentDb" Version="1.2.6" />
   </ItemGroup>
 
   <ItemGroup>

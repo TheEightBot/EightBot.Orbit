@@ -75,9 +75,10 @@ namespace EightBot.Orbit.Tests
 
             Assert.IsTrue(results.Count() == count);
 
-            Assert.IsTrue(results.ElementAt(0).StringProperty == "One0");
-            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
-            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.00);
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Created);
+            Assert.IsTrue(results.ElementAt(0).Value.StringProperty == "One0");
+            Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 1.00);
 
             // UPDATE
             syncables = new List<SyncInfo<TestClassA>>();
@@ -95,9 +96,10 @@ namespace EightBot.Orbit.Tests
 
             Assert.IsTrue(results.Count() == count);
 
-            Assert.IsTrue(results.ElementAt(0).StringProperty == "One0");
-            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
-            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.01);
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Updated);
+            Assert.IsTrue(results.ElementAt(0).Value.StringProperty == "One0");
+            Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 1.01);
 
             // DELETE
             syncables = new List<SyncInfo<TestClassA>>();
@@ -113,7 +115,10 @@ namespace EightBot.Orbit.Tests
 
             results = await this.OrbitDataClient.Sync(syncables);
 
-            Assert.IsTrue(results.Count() == 0);
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Deleted);
+            Assert.IsTrue(results.ElementAt(0).Value == null);
         }
 
         [TestMethod]
@@ -137,13 +142,15 @@ namespace EightBot.Orbit.Tests
 
             Assert.IsTrue(results.Count() == count);
 
-            Assert.IsTrue(results.ElementAt(0).StringProperty == "OneHundred0");
-            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
-            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.00);
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Created);
+            Assert.IsTrue(results.ElementAt(0).Value.StringProperty == "OneHundred0");
+            Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 1.00);
 
-            Assert.IsTrue(results.ElementAt(99).StringProperty == "OneHundred99");
-            Assert.IsTrue(results.ElementAt(99).IntProperty == 100);
-            Assert.IsTrue(results.ElementAt(99).DoubleProperty == 1.00);
+            Assert.IsTrue(results.ElementAt(99).Operation == OperationType.Created);
+            Assert.IsTrue(results.ElementAt(99).Value.StringProperty == "OneHundred99");
+            Assert.IsTrue(results.ElementAt(99).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(99).Value.DoubleProperty == 1.00);
 
             // UPDATE
             syncables = new List<SyncInfo<TestClassA>>();
@@ -161,13 +168,15 @@ namespace EightBot.Orbit.Tests
 
             Assert.IsTrue(results.Count() == count);
 
-            Assert.IsTrue(results.ElementAt(0).StringProperty == "OneHundred0");
-            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
-            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.01);
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Updated);
+            Assert.IsTrue(results.ElementAt(0).Value.StringProperty == "OneHundred0");
+            Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 1.01);
 
-            Assert.IsTrue(results.ElementAt(99).StringProperty == "OneHundred99");
-            Assert.IsTrue(results.ElementAt(99).IntProperty == 100);
-            Assert.IsTrue(results.ElementAt(99).DoubleProperty == 1.01);
+            Assert.IsTrue(results.ElementAt(99).Operation == OperationType.Updated);
+            Assert.IsTrue(results.ElementAt(99).Value.StringProperty == "OneHundred99");
+            Assert.IsTrue(results.ElementAt(99).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(99).Value.DoubleProperty == 1.01);
 
             // DELETE
             syncables = new List<SyncInfo<TestClassA>>();
@@ -183,7 +192,13 @@ namespace EightBot.Orbit.Tests
 
             results = await this.OrbitDataClient.Sync(syncables);
 
-            Assert.IsTrue(results.Count() == 0);
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Deleted);
+            Assert.IsTrue(results.ElementAt(0).Value == null);
+
+            Assert.IsTrue(results.ElementAt(99).Operation == OperationType.Deleted);
+            Assert.IsTrue(results.ElementAt(99).Value == null);
         }
 
         [TestMethod]
@@ -207,13 +222,15 @@ namespace EightBot.Orbit.Tests
 
             Assert.IsTrue(results.Count() == count);
 
-            Assert.IsTrue(results.ElementAt(0).StringProperty == "OneThousand0");
-            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
-            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.00);
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Created);
+            Assert.IsTrue(results.ElementAt(0).Value.StringProperty == "OneThousand0");
+            Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 1.00);
 
-            Assert.IsTrue(results.ElementAt(999).StringProperty == "OneThousand999");
-            Assert.IsTrue(results.ElementAt(999).IntProperty == 100);
-            Assert.IsTrue(results.ElementAt(999).DoubleProperty == 1.00);
+            Assert.IsTrue(results.ElementAt(999).Operation == OperationType.Created);
+            Assert.IsTrue(results.ElementAt(999).Value.StringProperty == "OneThousand999");
+            Assert.IsTrue(results.ElementAt(999).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(999).Value.DoubleProperty == 1.00);
 
             // UPDATE
             syncables = new List<SyncInfo<TestClassA>>();
@@ -231,13 +248,15 @@ namespace EightBot.Orbit.Tests
 
             Assert.IsTrue(results.Count() == count);
 
-            Assert.IsTrue(results.ElementAt(0).StringProperty == "OneThousand0");
-            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
-            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.01);
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Updated);
+            Assert.IsTrue(results.ElementAt(0).Value.StringProperty == "OneThousand0");
+            Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 1.01);
 
-            Assert.IsTrue(results.ElementAt(999).StringProperty == "OneThousand999");
-            Assert.IsTrue(results.ElementAt(999).IntProperty == 100);
-            Assert.IsTrue(results.ElementAt(999).DoubleProperty == 1.01);
+            Assert.IsTrue(results.ElementAt(999).Operation == OperationType.Updated);
+            Assert.IsTrue(results.ElementAt(999).Value.StringProperty == "OneThousand999");
+            Assert.IsTrue(results.ElementAt(999).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(999).Value.DoubleProperty == 1.01);
 
             // DELETE
             syncables = new List<SyncInfo<TestClassA>>();
@@ -253,7 +272,13 @@ namespace EightBot.Orbit.Tests
 
             results = await this.OrbitDataClient.Sync(syncables);
 
-            Assert.IsTrue(results.Count() == 0);
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Deleted);
+            Assert.IsTrue(results.ElementAt(0).Value == null);
+
+            Assert.IsTrue(results.ElementAt(99).Operation == OperationType.Deleted);
+            Assert.IsTrue(results.ElementAt(999).Value == null);
         }
 
         [TestMethod]
@@ -277,6 +302,8 @@ namespace EightBot.Orbit.Tests
 
             Assert.IsTrue(results.Count() == count);
 
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Created);
+
             var lastupDatedTime = syncables[0].ModifiedOn + 1000;
 
             // UPDATE
@@ -295,9 +322,10 @@ namespace EightBot.Orbit.Tests
 
             Assert.IsTrue(results.Count() == count);
 
-            Assert.IsTrue(results.ElementAt(0).StringProperty == "UpdateNewer0");
-            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
-            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 999.99);
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Updated);
+            Assert.IsTrue(results.ElementAt(0).Value.StringProperty == "UpdateNewer0");
+            Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 999.99);
 
             // DELETE
             syncables = new List<SyncInfo<TestClassA>>();
@@ -313,7 +341,10 @@ namespace EightBot.Orbit.Tests
 
             results = await this.OrbitDataClient.Sync(syncables);
 
-            Assert.IsTrue(results.Count() == 0);
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Deleted);
+            Assert.IsTrue(results.ElementAt(0).Value == null);
         }
 
         [TestMethod]
@@ -337,6 +368,8 @@ namespace EightBot.Orbit.Tests
 
             Assert.IsTrue(results.Count() == count);
 
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Created);
+
             var lastupDatedTime = syncables[0].ModifiedOn - 1000;
 
             // UPDATE
@@ -355,9 +388,10 @@ namespace EightBot.Orbit.Tests
 
             Assert.IsTrue(results.Count() == count);
 
-            Assert.IsTrue(results.ElementAt(0).StringProperty == "UpdateOlder0");
-            Assert.IsTrue(results.ElementAt(0).IntProperty == 100);
-            Assert.IsTrue(results.ElementAt(0).DoubleProperty == 1.00);
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Updated);
+            Assert.IsTrue(results.ElementAt(0).Value.StringProperty == "UpdateOlder0");
+            Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 1.00);
 
             // DELETE
             syncables = new List<SyncInfo<TestClassA>>();
@@ -373,7 +407,136 @@ namespace EightBot.Orbit.Tests
 
             results = await this.OrbitDataClient.Sync(syncables);
 
-            Assert.IsTrue(results.Count() == 0);
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Deleted);
+            Assert.IsTrue(results.ElementAt(0).Value == null);
+        }
+
+        [TestMethod]
+        public async Task OrbitServer_OrbitCosmosClient_Create_Empty_Id()
+        {
+            var count = 1;
+
+            var syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Update,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = "", IntProperty = 100, DoubleProperty = 999.99 }
+                });
+            }
+
+            var results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Created);
+            Assert.IsTrue(results.ElementAt(0).Value.StringProperty.Length == 36);
+            Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 999.99);
+
+            // DELETE
+            results = await this.OrbitDataClient.Sync(new List<SyncInfo<TestClassA>>() { new SyncInfo<TestClassA>() { Operation = OperationType.Delete, Value = results.ElementAt(0).Value } });
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Deleted);
+            Assert.IsTrue(results.ElementAt(0).Value == null);
+        }
+
+        [TestMethod]
+        public async Task OrbitServer_OrbitCosmosClient_Create_Guid_Empty_Id()
+        {
+            var count = 1;
+
+            var syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Update,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = Guid.Empty.ToString(), IntProperty = 100, DoubleProperty = 999.99 }
+                });
+            }
+
+            var results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.NotModified);
+            Assert.IsTrue(results.ElementAt(0).Value == null);
+        }
+
+        [TestMethod]
+        public async Task OrbitServer_OrbitCosmosClient_Create_Null_Id()
+        {
+            var count = 1;
+
+            var syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Update,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = null, IntProperty = 100, DoubleProperty = 999.99 }
+                });
+            }
+
+            var results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Created);
+            Assert.IsTrue(results.ElementAt(0).Value.StringProperty.Length == 36);
+            Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 999.99);
+
+            // DELETE
+            results = await this.OrbitDataClient.Sync(new List<SyncInfo<TestClassA>>() { new SyncInfo<TestClassA>() { Operation = OperationType.Delete, Value = results.ElementAt(0).Value } });
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Deleted);
+            Assert.IsTrue(results.ElementAt(0).Value == null);
+        }
+
+        [TestMethod]
+        public async Task OrbitServer_OrbitCosmosClient_Update_NotFound()
+        {
+            var count = 1;
+
+            var syncables = new List<SyncInfo<TestClassA>>();
+            for (var i = 0; i < count; i++)
+            {
+                syncables.Add(new SyncInfo<TestClassA>()
+                {
+                    Operation = OperationType.Update,
+                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                    Value = new TestClassA() { StringProperty = $"UpdateNotFound{i}", IntProperty = 100, DoubleProperty = 999.99 }
+                });
+            }
+
+            var results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Created);
+            Assert.IsTrue(results.ElementAt(0).Value.StringProperty == "UpdateNotFound0");
+            Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
+            Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 999.99);
+
+            // DELETE
+            results = await this.OrbitDataClient.Sync(new List<SyncInfo<TestClassA>>() { new SyncInfo<TestClassA>() { Operation = OperationType.Delete, Value = results.ElementAt(0).Value } });
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Deleted);
+            Assert.IsTrue(results.ElementAt(0).Value == null);
         }
 
         [TestMethod]
@@ -381,7 +544,6 @@ namespace EightBot.Orbit.Tests
         {
             var count = 1;
 
-            // DELETE
             var syncables = new List<SyncInfo<TestClassA>>();
             for (var i = 0; i < count; i++)
             {
@@ -395,10 +557,11 @@ namespace EightBot.Orbit.Tests
 
             var results = await this.OrbitDataClient.Sync(syncables);
 
-            Assert.IsTrue(results.Count() == 1);
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.ElementAt(0).Operation == OperationType.NotModified);
+            Assert.IsTrue(results.ElementAt(0).Value == null);
         }
-
-
 
 
 
@@ -409,6 +572,10 @@ namespace EightBot.Orbit.Tests
             public int IntProperty { get; set; }
 
             public double DoubleProperty { get; set; }
+
+            public Guid GuidProperty { get; set; } = Guid.NewGuid();
+
+            public DateTime DateTimeProperty { get; set; } = DateTime.Now;
         }
 
 

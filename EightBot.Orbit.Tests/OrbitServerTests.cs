@@ -118,6 +118,7 @@ namespace EightBot.Orbit.Tests
             Assert.IsTrue(results.Count() == count);
 
             Assert.IsTrue(results.ElementAt(0).Operation == OperationType.Deleted);
+            Assert.IsTrue(!String.IsNullOrWhiteSpace(results.ElementAt(0).Id));
             Assert.IsTrue(results.ElementAt(0).Value == null);
         }
 

@@ -65,8 +65,6 @@ namespace OrbitSample.Server.Web
                 x.EnsureSyncController<Models.Post>(false);
             });
 
-            
-
             services.AddRouteAnalyzer();
         }
 

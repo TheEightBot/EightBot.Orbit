@@ -8,6 +8,9 @@ namespace OrbitSample.Models
         //[JsonProperty("id")]
         //public string Id { get; set; }
 
+        [JsonProperty("uniqueId")]
+        public string UniqueId { get; set; }
+
         [JsonProperty("userId")]
         public string UserId { get; set; }
 

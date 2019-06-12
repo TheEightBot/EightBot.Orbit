@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace EightBot.Orbit.Server.Web
@@ -19,7 +20,11 @@ namespace EightBot.Orbit.Server.Web
         [HttpPost("")]
         public async Task<ActionResult<IEnumerable<T>>> Post([FromBody]IEnumerable<ClientSyncInfo<T>> syncables)
         {
-            return Ok(await this.DataClient.Sync(syncables));
+            var payload = await this.DataClient.Sync(syncables);
+            if (payload != null && payload.Count() > 0)
+                return Ok(payload);
+            else
+                return BadRequest();
         }
     }
 }

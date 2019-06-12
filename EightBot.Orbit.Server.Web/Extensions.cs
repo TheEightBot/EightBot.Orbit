@@ -1,4 +1,6 @@
 ﻿using EightBot.Nebula.DocumentDb;
+using EightBot.Orbit.Server;
+using EightBot.Orbit.Server.Data;
 using EightBot.Orbit.Server.Web;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Azure.Documents;
@@ -24,27 +26,27 @@ namespace Microsoft.Extensions.DependencyInjection
             return services;
         }
 
-        public static IServiceCollection AddDefaultOrbitSyncCosmosDataClient(this IServiceCollection services, string databaseUri, string authKey, string databaseId, Action<IDataClient> config, bool throwErrors = true, int? throughput = 400)
+        public static IServiceCollection AddDefaultOrbitSyncCosmosDataClient(this IServiceCollection services, string endpointUri, string authKey, string databaseId, Action<IDataClient> config, bool throwErrors = true, int? throughput = 400)
         {
             services.AddSingleton<IDataClient, DataClient>(x =>
             {
-                var documentClient = new DocumentClient(new Uri(databaseUri), authKey, new ConnectionPolicy() { ConnectionMode = ConnectionMode.Gateway });
-                documentClient.OpenAsync().Wait();
-                documentClient.CreateDatabaseIfNotExistsAsync(new Database { Id = databaseId }, new RequestOptions() { OfferThroughput = throughput }).Wait();
-
                 var documentDbLogger = x.GetRequiredService<ILoggerFactory>().CreateLogger("EightBot.Nebula.DocumentDb");
 
-                var dataClient = new DataClient(documentClient, databaseId, x.GetService<IHttpContextAccessor>()?.HttpContext.User)
+                var dataClient = new DataClient(endpointUri, authKey, databaseId, x.GetService<IHttpContextAccessor>()?.HttpContext.User)
                 {
-                    ThrowErrors = throwErrors,
-                    LogError = y => documentDbLogger?.LogError(y),
-                    LogInformation = y => documentDbLogger?.LogInformation(y)
+                    ThrowErrors = true,
+                    LogError = y => documentDbLogger.LogError(y),
+                    LogInformation = y => documentDbLogger.LogInformation(y)
                 };
+
+                dataClient.Client.CreateDatabaseIfNotExistsAsync(new Database { Id = databaseId }, new RequestOptions() { OfferThroughput = 400 }).Wait();
 
                 config.Invoke(dataClient);
 
                 return dataClient;
             });
+
+            services.AddSingleton<IOrbitDataClient, OrbitCosmosDataClient>();
 
             return services;
         }

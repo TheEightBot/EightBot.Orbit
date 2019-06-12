@@ -3,6 +3,7 @@ using Xamarin.Forms;
 using Xamarin.Forms.Xaml;
 using EightBot.Orbit.Client;
 using Splat;
+using OrbitSample.Models;
 
 namespace OrbitSample
 {
@@ -15,8 +16,8 @@ namespace OrbitSample
             var orbitClient =
                 new OrbitClient()
                     .Initialize(Xamarin.Essentials.FileSystem.AppDataDirectory)
-                    .AddTypeRegistration<Post, long>(x => x.Id)
-                    .AddTypeRegistration<User, long>(x => x.Id);
+                    .AddTypeRegistration<Post, string>(x => x.UserId)
+                    .AddTypeRegistration<User, string>(x => x.Username);
 
             Locator.CurrentMutable.RegisterConstant<OrbitClient>(orbitClient);
 

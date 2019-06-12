@@ -9,6 +9,9 @@ using EightBot.Orbit.Client;
 using Splat;
 using System.Net.Http;
 using Newtonsoft.Json;
+using OrbitSample.Models;
+using System.Runtime.InteropServices;
+using EightBot.Orbit;
 
 namespace OrbitSample
 {
@@ -33,9 +36,24 @@ namespace OrbitSample
             var users = JsonConvert.DeserializeObject<IEnumerable<User>>(usersJson);
             await client.PopulateCache(users);
 
-            var cachedUsers = await client.GetAllLatest<User>();
+            foreach (var user in users)
+            {
+                user.Name = $"{user.Name} updated";
+                await client.Upsert(user);
+            }
 
-            listView.ItemsSource = cachedUsers;
+            var syncQueueLatest = client.GetSyncHistory<User>();
+            var postValue = JsonConvert.SerializeObject(syncQueueLatest);
+
+            var response = await httpClient.PostAsync("https://localhost:5001/sync/users", new StringContent(postValue));
+
+            var parsedResponse = JsonConvert.DeserializeObject<IEnumerable<ServerSyncInfo<User>>>(await response.Content.ReadAsStringAsync());
+
+            await client.Reconcile(parsedResponse);
+
+            var latest = await client.GetAllLatest<User>();
+
+            listView.ItemsSource = latest;
         }
     }
 }

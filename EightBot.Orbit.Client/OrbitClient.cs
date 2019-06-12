@@ -149,7 +149,7 @@ namespace EightBot.Orbit.Client
 
                     if (!syncCollection.Exists(GetItemQuery(obj, category)))
                     {
-                        syncCollection.Insert(GetAsSynchronizable(obj, OperationType.Create, category));
+                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
 
                         return true;
                     }
@@ -170,7 +170,7 @@ namespace EightBot.Orbit.Client
                         () =>
                         {
                             var syncCollection = GetSynchronizableTypeCollection<T>();
-                            syncCollection.Insert(GetAsSynchronizable(obj, OperationType.Update, category));
+                            syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
                             return true;
                         });
             }
@@ -200,7 +200,7 @@ namespace EightBot.Orbit.Client
                         () =>
                         {
                             var syncCollection = GetSynchronizableTypeCollection<T>();
-                            syncCollection.Insert(GetAsSynchronizable(obj, OperationType.Delete, category));
+                            syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Delete, category));
                             return true;
                         })
                     .ConfigureAwait(false);
@@ -426,7 +426,7 @@ namespace EightBot.Orbit.Client
                         .Find(GetItemQuery<T>(category))
                         ?.OrderByDescending(x => x.ModifiedTimestamp)
                         ?.GroupBy(x => x.TypeId)
-                        ?.Where(x => !x.Any(i => i.Operation == (int)OperationType.Delete))
+                        ?.Where(x => !x.Any(i => i.Operation == (int)ClientOperationType.Delete))
                         ?.Select(x => x.First().Value)
                         ?.ToList()
                         ?? Enumerable.Empty<T>();
@@ -453,7 +453,7 @@ namespace EightBot.Orbit.Client
 
         }
 
-        public Task<IEnumerable<SyncInfo<T>>> GetSyncHistory<T>(string id, string category = null)
+        public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(string id, string category = null)
             where T : class
         {
             return _processingQueue.Queue(
@@ -472,18 +472,18 @@ namespace EightBot.Orbit.Client
                     return
                         cacheables
                             ?.Select(x =>
-                                new SyncInfo<T>
+                                new ClientSyncInfo<T>
                                 {
                                     ModifiedOn = x.ModifiedTimestamp,
-                                    Operation = (OperationType)x.Operation,
+                                    Operation = (ClientOperationType)x.Operation,
                                     Value = x.Value
                                 })
                             ?.ToList()
-                        ?? Enumerable.Empty<SyncInfo<T>>();
+                        ?? Enumerable.Empty<ClientSyncInfo<T>>();
                 });
         }
 
-        public Task<IEnumerable<SyncInfo<T>>> GetSyncHistory<T>(SyncType syncType = SyncType.Latest, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
+        public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(SyncType syncType = SyncType.Latest, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
             where T : class
         {
             return _processingQueue.Queue(
@@ -503,15 +503,15 @@ namespace EightBot.Orbit.Client
                                     {
                                         var latest = x.First();
 
-                                        return new SyncInfo<T>
+                                        return new ClientSyncInfo<T>
                                         {
                                             ModifiedOn = latest.ModifiedTimestamp,
-                                            Operation = (OperationType)latest.Operation,
+                                            Operation = (ClientOperationType)latest.Operation,
                                             Value = latest.Value
                                         };
                                     })
                                 ?.ToList()
-                                ?? Enumerable.Empty<SyncInfo<T>>();
+                                ?? Enumerable.Empty<ClientSyncInfo<T>>();
                         case SyncType.FullHistory:
                             return syncCollection
                                 .Find(GetItemQuery<T>(category, categorySearch))
@@ -519,19 +519,19 @@ namespace EightBot.Orbit.Client
                                 ?.Select(
                                     x =>
                                     {
-                                        return new SyncInfo<T>
+                                        return new ClientSyncInfo<T>
                                         {
                                             ModifiedOn = x.ModifiedTimestamp,
-                                            Operation = (OperationType)x.Operation,
+                                            Operation = (ClientOperationType)x.Operation,
                                             Category = x.Category,
                                             Value = x.Value
                                         };
                                     })
                                 ?.ToList()
-                                ?? Enumerable.Empty<SyncInfo<T>>();
+                                ?? Enumerable.Empty<ClientSyncInfo<T>>();
                     }
 
-                    return Enumerable.Empty<SyncInfo<T>>();
+                    return Enumerable.Empty<ClientSyncInfo<T>>();
                 });
 
         }
@@ -593,7 +593,7 @@ namespace EightBot.Orbit.Client
                             .Count(
                                 Query.And(
                                     Query.EQ(
-                                        SynchronizableOperationIndex, (int)OperationType.Delete),
+                                        SynchronizableOperationIndex, (int)ClientOperationType.Delete),
                                         GetItemQueryWithId<T>(id, category)));
 
                     if (deleted > 0)
@@ -603,7 +603,7 @@ namespace EightBot.Orbit.Client
                 });
         }
 
-        private Synchronizable<T> GetAsSynchronizable<T>(T obj, OperationType operationType, string category = null)
+        private Synchronizable<T> GetAsSynchronizable<T>(T obj, ClientOperationType operationType, string category = null)
             where T : class
         {
             var rti = _registeredTypes[typeof(T)];

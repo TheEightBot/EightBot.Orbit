@@ -7,6 +7,8 @@ namespace EightBot.Orbit
 
         public string Id { get; set; }
 
+        public long ModifiedOn { get; set; }
+
         public T Value { get; set; }
     }
 }

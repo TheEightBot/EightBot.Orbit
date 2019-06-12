@@ -61,7 +61,7 @@ namespace OrbitSample.Server.Web
 
             services.AddOrbitSyncControllers(x =>
             {
-                x.EnsureSyncController<Models.User>();
+                x.EnsureSyncController<Models.User>(false);
                 x.EnsureSyncController<Models.Post>(false);
             });
 

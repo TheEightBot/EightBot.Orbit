@@ -23,6 +23,8 @@ namespace EightBot.Orbit.Client
 
         private readonly object _scaffoldingLock = new object();
 
+        private ISyncReconciler _syncReconciler;
+
         private readonly Dictionary<Type, RegisteredTypeInformation> _registeredTypes =
             new Dictionary<Type, RegisteredTypeInformation>();
 
@@ -38,6 +40,10 @@ namespace EightBot.Orbit.Client
 
         public bool Initialized { get; private set; }
 
+        public OrbitClient(ISyncReconciler syncReconciler = null)
+        {
+            _syncReconciler = syncReconciler;
+        }
 
         public OrbitClient Initialize(string cacheDirectory, string customCacheName = null, string additionalConnectionStringParameters = null)
         {
@@ -157,7 +163,6 @@ namespace EightBot.Orbit.Client
                     return false;
                 });
         }
-
 
         public async Task<bool> Update<T>(T obj, string category = null)
             where T : class
@@ -516,17 +521,7 @@ namespace EightBot.Orbit.Client
                             return syncCollection
                                 .Find(GetItemQuery<T>(category, categorySearch))
                                 ?.OrderByDescending(x => x.ModifiedTimestamp)
-                                ?.Select(
-                                    x =>
-                                    {
-                                        return new ClientSyncInfo<T>
-                                        {
-                                            ModifiedOn = x.ModifiedTimestamp,
-                                            Operation = (ClientOperationType)x.Operation,
-                                            Category = x.Category,
-                                            Value = x.Value
-                                        };
-                                    })
+                                ?.Select(x => GetAsClientSyncInfo(x))
                                 ?.ToList()
                                 ?? Enumerable.Empty<ClientSyncInfo<T>>();
                     }
@@ -603,6 +598,25 @@ namespace EightBot.Orbit.Client
                 });
         }
 
+        private Task<Synchronizable<T>> GetLatestSyncQueue<T>(string id, string category = null)
+            where T : class
+        {
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var syncCollection = GetSynchronizableTypeCollection<T>();
+
+                    var cacheable =
+                        syncCollection
+                            .FindOne(
+                                Query.And(
+                                    Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
+                                    GetItemQueryWithId<T>(id, category)));
+
+                    return cacheable;
+                });
+        }
+
         private Synchronizable<T> GetAsSynchronizable<T>(T obj, ClientOperationType operationType, string category = null)
             where T : class
         {
@@ -624,6 +638,17 @@ namespace EightBot.Orbit.Client
                 Value = obj,
                 ModifiedTimestamp = now.ToUnixTimeMilliseconds(),
                 Operation = (int)operationType
+            };
+        }
+
+        private ClientSyncInfo<T> GetAsClientSyncInfo<T>(Synchronizable<T> synchronizable)
+        {
+            return new ClientSyncInfo<T>
+            {
+                ModifiedOn = synchronizable.ModifiedTimestamp,
+                Operation = (ClientOperationType)synchronizable.Operation,
+                Category = synchronizable.Category,
+                Value = synchronizable.Value
             };
         }
 
@@ -675,6 +700,32 @@ namespace EightBot.Orbit.Client
                             : Query.And(
                                 Query.EQ(SynchronizableTypeIdIndex, id),
                                 Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()));
+        }
+
+        public async Task Reconcile<T>(IEnumerable<ServerSyncInfo<T>> serverSyncInformation, string category = null)
+            where T : class
+        {
+            foreach (var serverSyncInfo in serverSyncInformation)
+            {
+                var clientInfo = await GetLatestSyncQueue<T>(serverSyncInfo.Id, category).ConfigureAwait(false);
+
+                var result = _syncReconciler.Reconcile(serverSyncInfo, GetAsClientSyncInfo(clientInfo));
+
+                switch (result)
+                {
+                    case SyncReconciliationAction.KeepClientValue:
+                        await Upsert(clientInfo.Value, category).ConfigureAwait(false);
+                        break;
+                    case SyncReconciliationAction.RemoveClientValue:
+                        await TerminateSyncQueueHisory(clientInfo.Value, category).ConfigureAwait(false);
+                        break;
+                    case SyncReconciliationAction.ReplaceWithServerValue:
+                        await Upsert(serverSyncInfo.Value, category).ConfigureAwait(false);
+                        break;
+                    default:
+                        break;
+                }
+            }
         }
 
         private BsonValue GetId<T>(T obj)

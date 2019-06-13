@@ -9,13 +9,6 @@ namespace OrbitSample.Server.Web.Controllers
     [ApiController]
     public class ValuesController : ControllerBase
     {
-        private readonly IDataClient DataClient = null;
-
-        public ValuesController(IDataClient dataClient)
-        {
-            this.DataClient = dataClient;
-        }
-
         // GET api/values
         [HttpGet]
         public ActionResult<IEnumerable<string>> Get()

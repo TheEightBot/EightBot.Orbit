@@ -1,6 +1,4 @@
 ﻿using AspNetCore.RouteAnalyzer;
-using EightBot.Orbit.Server;
-using EightBot.Orbit.Server.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

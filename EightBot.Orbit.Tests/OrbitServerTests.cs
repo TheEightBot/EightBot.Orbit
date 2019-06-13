@@ -19,6 +19,7 @@ namespace EightBot.Orbit.Tests
         public static readonly LoggerFactory Logger = new LoggerFactory(new[] { new DebugLoggerProvider((x, y) => true) });
 
         private IOrbitDataClient OrbitDataClient = null;
+        private IDataClient DataClient = null;
 
         public OrbitServerTests()
         {
@@ -46,6 +47,7 @@ namespace EightBot.Orbit.Tests
             await dataClient.EnsureCollectionAsync<TestClassA>(x => x.StringProperty, x => x.IntProperty);
 
             this.OrbitDataClient = new OrbitCosmosDataClient(dataClient);
+            this.DataClient = dataClient;
         }
 
         [TestCleanup]
@@ -100,6 +102,10 @@ namespace EightBot.Orbit.Tests
             Assert.IsTrue(results.ElementAt(0).Value.StringProperty == "One0");
             Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
             Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 1.01);
+
+            var total = await this.DataClient.Document<TestClassA>().WhereAsync(x => x.IntProperty == 100);
+
+            Assert.IsTrue(total.Count == count);
 
             // DELETE
             syncables = new List<ClientSyncInfo<TestClassA>>();
@@ -178,6 +184,10 @@ namespace EightBot.Orbit.Tests
             Assert.IsTrue(results.ElementAt(99).Value.StringProperty == "OneHundred99");
             Assert.IsTrue(results.ElementAt(99).Value.IntProperty == 100);
             Assert.IsTrue(results.ElementAt(99).Value.DoubleProperty == 1.01);
+
+            var total = await this.DataClient.Document<TestClassA>().WhereAsync(x => x.IntProperty == 100);
+
+            Assert.IsTrue(total.Count == count);
 
             // DELETE
             syncables = new List<ClientSyncInfo<TestClassA>>();
@@ -258,6 +268,10 @@ namespace EightBot.Orbit.Tests
             Assert.IsTrue(results.ElementAt(999).Value.StringProperty == "OneThousand999");
             Assert.IsTrue(results.ElementAt(999).Value.IntProperty == 100);
             Assert.IsTrue(results.ElementAt(999).Value.DoubleProperty == 1.01);
+
+            var total = this.DataClient.Document<TestClassA>().Count(x => x.IntProperty == 100);
+
+            Assert.IsTrue(total == count);
 
             // DELETE
             syncables = new List<ClientSyncInfo<TestClassA>>();
@@ -564,6 +578,93 @@ namespace EightBot.Orbit.Tests
             Assert.IsTrue(results.ElementAt(0).Value == null);
         }
 
+        [TestMethod]
+        public async Task OrbitServer_OrbitCosmosClient_Its_Complicated()
+        {
+            var count = 10;
+
+            // CREATE
+            var syncables = new List<ClientSyncInfo<TestClassA>>();
+            var item1 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer0", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item2 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer1", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item3 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer2", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item4 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer3", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item5 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer4", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item6 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer5", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item7 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer6", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item8 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer7", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item9 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer8", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item10 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer9", IntProperty = 100, DoubleProperty = 1.00 } };
+
+            syncables.Add(item1);
+            syncables.Add(item2);
+            syncables.Add(item3);
+            syncables.Add(item4);
+            syncables.Add(item5);
+            syncables.Add(item6);
+            syncables.Add(item7);
+            syncables.Add(item8);
+            syncables.Add(item9);
+            syncables.Add(item10);
+
+            var results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+            Assert.IsTrue(results.All(x => x.Operation == ServerOperationType.Created));
+
+            // UPDATE
+            item1.ModifiedOn = item1.ModifiedOn - 1000;
+            item1.Value.GuidProperty = Guid.Empty;
+            item2.ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            item2.Value.GuidProperty = Guid.Empty;
+            item3.ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            item3.Value.GuidProperty = Guid.Empty;
+            item4.ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            item4.Value.GuidProperty = Guid.Empty;
+            item5.ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            item5.Value.GuidProperty = Guid.Empty;
+            item6.ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            item6.Value.GuidProperty = Guid.Empty;
+            item7.ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            item7.Value.GuidProperty = Guid.Empty;
+            item8.ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            item8.Value.GuidProperty = Guid.Empty;
+            item9.Operation = ClientOperationType.Delete;
+            item10.ModifiedOn = item10.ModifiedOn - 1000;
+            item8.Value.GuidProperty = Guid.Empty;
+
+            results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+            Assert.IsTrue(results.ElementAt(0).Operation == ServerOperationType.Updated);
+            Assert.IsTrue(results.ElementAt(0).Value.GuidProperty != Guid.Empty);
+            Assert.IsTrue(results.Skip(1).Take(7).All(x => x.Operation == ServerOperationType.Updated));
+            Assert.IsTrue(results.Skip(1).Take(7).All(x => x.Value.GuidProperty == Guid.Empty));
+            Assert.IsTrue(results.ElementAt(8).Operation == ServerOperationType.Deleted);
+            Assert.IsTrue(results.ElementAt(8).Value == null);
+            Assert.IsTrue(results.ElementAt(9).Operation == ServerOperationType.Updated);
+            Assert.IsTrue(results.ElementAt(9).Value.GuidProperty != Guid.Empty);
+
+
+            item1.Operation = ClientOperationType.Delete;
+            item2.Operation = ClientOperationType.Delete;
+            item3.Operation = ClientOperationType.Delete;
+            item4.Operation = ClientOperationType.Delete;
+            item5.Operation = ClientOperationType.Delete;
+            item6.Operation = ClientOperationType.Delete;
+            item7.Operation = ClientOperationType.Delete;
+            item8.Operation = ClientOperationType.Delete;
+            item9.Operation = ClientOperationType.Delete;
+            item10.Operation = ClientOperationType.Delete;
+
+            results = await this.OrbitDataClient.Sync(syncables);
+
+            Assert.IsTrue(results.Count() == count);
+
+            Assert.IsTrue(results.Skip(0).Take(8).All(x => x.Operation == ServerOperationType.Deleted));
+            Assert.IsTrue(results.ElementAt(8).Operation == ServerOperationType.NotModified);
+            Assert.IsTrue(results.ElementAt(9).Operation == ServerOperationType.Deleted);
+        }
 
 
         public class TestClassA

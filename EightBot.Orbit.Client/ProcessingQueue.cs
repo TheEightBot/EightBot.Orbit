@@ -125,7 +125,7 @@ namespace EightBot.Orbit.Client
                         async x =>
                         {
                             await processingTask.Invoke((T)x).ConfigureAwait(false);
-                            return Task.FromResult<object>(null);
+                            return default(object);
                         }
                 };
 

@@ -42,7 +42,7 @@ namespace EightBot.Orbit.Client
 
         public OrbitClient(ISyncReconciler syncReconciler = null)
         {
-            _syncReconciler = syncReconciler;
+            _syncReconciler = syncReconciler ?? new SyncReconcilers.ServerWinsSyncReconciler();
         }
 
         public OrbitClient Initialize(string cacheDirectory, string customCacheName = null, string additionalConnectionStringParameters = null)
@@ -317,7 +317,6 @@ namespace EightBot.Orbit.Client
             //TODO: This could be optimized
             var latestSyncables = await GetAllLatestSyncQueue<T>().ConfigureAwait(false);
 
-
             var syncCategories =
                 await _processingQueue
                     .Queue(
@@ -439,6 +438,7 @@ namespace EightBot.Orbit.Client
         }
 
         public async Task<bool> PopulateCache<T>(IEnumerable<T> items, string category = null)
+            where T : class
         {
             if(!(await DropTypeCollection<T>(category).ConfigureAwait(false)))
             {
@@ -528,7 +528,6 @@ namespace EightBot.Orbit.Client
 
                     return Enumerable.Empty<ClientSyncInfo<T>>();
                 });
-
         }
 
         public Task<int> GetSyncHistoryCount<T>(SyncType syncType = SyncType.Latest, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
@@ -566,6 +565,38 @@ namespace EightBot.Orbit.Client
 
                     return _db.DropCollection(ctn);
                 });
+        }
+
+        public async Task<bool> DeleteCacheItem<T>(T item, string category = null)
+            where T : class
+        {
+            return
+                await _processingQueue
+                    .Queue(
+                        () =>
+                        {
+                            var typeCollection = GetTypeCollection<T>(category);
+
+                            return typeCollection.Delete(GetItemQuery<T>(item, category)) == 1;
+                        })
+                    .ConfigureAwait(false);
+
+        }
+
+        public async Task<bool> UpsertCacheItem<T>(T item, string category = null)
+            where T : class
+        {
+            return
+                await _processingQueue
+                    .Queue(
+                        () =>
+                        {
+                            var typeCollection = GetTypeCollection<T>(category);
+                            var itemQuery = GetItemQuery<T>(item, category);
+
+                            return typeCollection.Upsert(item);
+                        })
+                    .ConfigureAwait(false);
         }
 
         private Task<bool> ItemExistsAndAvailable<T>(T obj, string category = null)
@@ -707,22 +738,28 @@ namespace EightBot.Orbit.Client
         {
             foreach (var serverSyncInfo in serverSyncInformation)
             {
-                var clientInfo = await GetLatestSyncQueue<T>(serverSyncInfo.Id, category).ConfigureAwait(false);
+                var itemId = GetId(serverSyncInfo.Value);
+                var clientInfo = await GetLatestSyncQueue<T>(itemId, category).ConfigureAwait(false);
 
                 var result = _syncReconciler.Reconcile(serverSyncInfo, GetAsClientSyncInfo(clientInfo));
 
                 switch (result)
                 {
                     case SyncReconciliationAction.KeepClientValue:
-                        await Upsert(clientInfo.Value, category).ConfigureAwait(false);
+                        await TerminateSyncQueueHisory(clientInfo.Value, category).ConfigureAwait(false);
+                        await UpsertCacheItem(clientInfo.Value, category).ConfigureAwait(false);
                         break;
                     case SyncReconciliationAction.RemoveClientValue:
                         await TerminateSyncQueueHisory(clientInfo.Value, category).ConfigureAwait(false);
+                        await DeleteCacheItem(clientInfo.Value, category);
                         break;
                     case SyncReconciliationAction.ReplaceWithServerValue:
-                        await Upsert(serverSyncInfo.Value, category).ConfigureAwait(false);
+                        await TerminateSyncQueueHisory(clientInfo.Value, category).ConfigureAwait(false);
+                        await UpsertCacheItem(serverSyncInfo.Value, category).ConfigureAwait(false);
                         break;
+                    case SyncReconciliationAction.None:
                     default:
+                        //This likely occurred because of an error on the server or similar, so we will hold onto the value
                         break;
                 }
             }

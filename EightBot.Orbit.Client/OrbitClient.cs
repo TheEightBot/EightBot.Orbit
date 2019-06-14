@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -437,13 +437,16 @@ namespace EightBot.Orbit.Client
                 });
         }
 
-        public async Task<bool> PopulateCache<T>(IEnumerable<T> items, string category = null)
+        public async Task<bool> PopulateCache<T>(IEnumerable<T> items, string category = null, bool terminateSyncQueueHistory = false)
             where T : class
         {
             if(!(await DropTypeCollection<T>(category).ConfigureAwait(false)))
             {
                 return false;
             }
+
+            if (terminateSyncQueueHistory && !(await TerminateSyncQueueHisory<T>(category).ConfigureAwait(false)))
+                return false;
 
             return 
                 await _processingQueue

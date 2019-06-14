@@ -738,8 +738,7 @@ namespace EightBot.Orbit.Client
         {
             foreach (var serverSyncInfo in serverSyncInformation)
             {
-                var itemId = GetId(serverSyncInfo.Value);
-                var clientInfo = await GetLatestSyncQueue<T>(itemId, category).ConfigureAwait(false);
+                var clientInfo = await GetLatestSyncQueue<T>(serverSyncInfo.Id, category).ConfigureAwait(false);
 
                 var result = _syncReconciler.Reconcile(serverSyncInfo, GetAsClientSyncInfo(clientInfo));
 

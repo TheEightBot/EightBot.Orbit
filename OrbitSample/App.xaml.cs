@@ -16,7 +16,7 @@ namespace OrbitSample
             var orbitClient =
                 new OrbitClient()
                     .Initialize(Xamarin.Essentials.FileSystem.AppDataDirectory)
-                    .AddTypeRegistration<Post, string>(x => x.UserId)
+                    .AddTypeRegistration<Post, string>(x => x.Id)
                     .AddTypeRegistration<User, string>(x => x.Username);
 
             Locator.CurrentMutable.RegisterConstant<OrbitClient>(orbitClient);

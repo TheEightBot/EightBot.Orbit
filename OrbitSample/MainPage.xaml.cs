@@ -12,6 +12,7 @@ using Newtonsoft.Json;
 using OrbitSample.Models;
 using System.Runtime.InteropServices;
 using EightBot.Orbit;
+using System.Diagnostics;
 
 namespace OrbitSample
 {
@@ -31,36 +32,75 @@ namespace OrbitSample
 
             try
             {
+                this.IsBusy = true;
+
                 var client = Locator.Current.GetService<OrbitClient>();
 
                 var httpClient = new HttpClient();
 
                 var usersJson = await httpClient.GetStringAsync("https://jsonplaceholder.typicode.com/users").ConfigureAwait(false);
                 var users = JsonConvert.DeserializeObject<IEnumerable<User>>(usersJson);
-                await client.PopulateCache(users).ConfigureAwait(false);
 
+                var postJson = await httpClient.GetStringAsync("https://jsonplaceholder.typicode.com/posts").ConfigureAwait(false);
+                var posts = JsonConvert.DeserializeObject<IEnumerable<Post>>(postJson);
+
+
+                var stopWatch = new Stopwatch();
+                stopWatch.Start();
+
+                System.Diagnostics.Debug.WriteLine($"Starting Populate Cache: {stopWatch.ElapsedMilliseconds}ms");
+                await Task.WhenAll(client.PopulateCache(posts), client.PopulateCache(users));
+                System.Diagnostics.Debug.WriteLine($"Finished Populate Cache: {stopWatch.ElapsedMilliseconds}ms");
+
+                System.Diagnostics.Debug.WriteLine($"Starting Upsert: {stopWatch.ElapsedMilliseconds}ms");
                 foreach (var user in users)
                 {
                     user.Name = $"{user.Name} updated";
                     await client.Upsert(user).ConfigureAwait(false);
                 }
 
-                var syncQueueLatest = await client.GetSyncHistory<User>().ConfigureAwait(false);
-                var postValue = JsonConvert.SerializeObject(syncQueueLatest);
+                foreach (var post in posts)
+                {
+                    post.Title = $"{post.Title} updated";
+                    await client.Upsert(post).ConfigureAwait(false);
+                }
+                System.Diagnostics.Debug.WriteLine($"Finished Upsert: {stopWatch.ElapsedMilliseconds}ms");
 
-                var response = await httpClient.PostAsync("http://10.211.55.3:5000/api/sync/users", new StringContent(postValue, Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                System.Diagnostics.Debug.WriteLine($"Starting Synch History: {stopWatch.ElapsedMilliseconds}ms");
+                var syncQueueLatestUser = await client.GetSyncHistory<User>().ConfigureAwait(false);
+                var syncQueueLatestPost = await client.GetSyncHistory<Post>().ConfigureAwait(false);
+                System.Diagnostics.Debug.WriteLine($"Finished Synch History: {stopWatch.ElapsedMilliseconds}ms");
+                var postUserValue = JsonConvert.SerializeObject(syncQueueLatestUser);
+                var postPostValue = JsonConvert.SerializeObject(syncQueueLatestPost);
 
-                var parsedResponse = JsonConvert.DeserializeObject<IEnumerable<ServerSyncInfo<User>>>(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
+                System.Diagnostics.Debug.WriteLine($"Starting Post to Sync API: {stopWatch.ElapsedMilliseconds}ms");
+                var responseUsers = await httpClient.PostAsync("http://10.211.55.3:5000/api/sync/users", new StringContent(postUserValue, Encoding.UTF8, "application/json"));
+                var responsePosts = await httpClient.PostAsync("http://10.211.55.3:5000/api/sync/posts", new StringContent(postPostValue, Encoding.UTF8, "application/json"));
+                System.Diagnostics.Debug.WriteLine($"Finished Post to Sync API: {stopWatch.ElapsedMilliseconds}ms");
 
-                await client.Reconcile(parsedResponse).ConfigureAwait(false);
+                var parsedUserResponse = JsonConvert.DeserializeObject<IEnumerable<ServerSyncInfo<User>>>(await responseUsers.Content.ReadAsStringAsync().ConfigureAwait(false));
+                var parsedPostResponse = JsonConvert.DeserializeObject<IEnumerable<ServerSyncInfo<Post>>>(await responsePosts.Content.ReadAsStringAsync().ConfigureAwait(false));
 
-                var latest = await client.GetAllLatest<User>().ConfigureAwait(false);
+                System.Diagnostics.Debug.WriteLine($"Starting Reconcile: {stopWatch.ElapsedMilliseconds}ms");
+                await Task.WhenAll(client.Reconcile(parsedUserResponse), client.Reconcile(parsedPostResponse));
+                System.Diagnostics.Debug.WriteLine($"Finished Reconcile: {stopWatch.ElapsedMilliseconds}ms");
 
-                Device.BeginInvokeOnMainThread(() => listView.ItemsSource = latest);
+                System.Diagnostics.Debug.WriteLine($"Starting Get All Latest: {stopWatch.ElapsedMilliseconds}ms");
+                var latestUsers = await client.GetAllLatest<User>().ConfigureAwait(false);
+                var latestPosts = await client.GetAllLatest<Post>().ConfigureAwait(false);
+                System.Diagnostics.Debug.WriteLine($"Finished Get All Latest: {stopWatch.ElapsedMilliseconds}ms");
+
+                stopWatch.Stop();
+
+                Device.BeginInvokeOnMainThread(() => listView.ItemsSource = latestUsers);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"{ex}");
+            }
+            finally
+            {
+                this.IsBusy = false;
             }
         }
     }

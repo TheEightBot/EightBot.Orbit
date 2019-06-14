@@ -156,54 +156,62 @@ namespace EightBot.Orbit.Client
                 });
         }
 
-        public async Task<bool> Update<T>(T obj, string category = null)
+        public Task<bool> Update<T>(T obj, string category = null)
             where T : class
         {
-            if (await ItemExistsAndAvailable(obj, category).ConfigureAwait(false))
-            {
-                return 
-                    await _processingQueue
-                        .Queue(
+            return 
+                _processingQueue
+                    .Queue(
                         () =>
                         {
-                            var syncCollection = GetSynchronizableTypeCollection<T>();
-                            syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
-                            return true;
+                            if (ItemExistsAndAvailable(obj, category))
+                            {
+                                var syncCollection = GetSynchronizableTypeCollection<T>();
+                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
+                                return true;
+                            }
+
+                            return false;
                         });
-            }
-
-            return false;
         }
 
-        public async Task<bool> Upsert<T>(T obj, string category = null)
+        public Task<bool> Upsert<T>(T obj, string category = null)
             where T : class
         {
-            if (await Update(obj, category).ConfigureAwait(false))
-            {
-                return true;
-            }
-
-            return await Create(obj, category).ConfigureAwait(false);
-        }
-
-        public async Task<bool> Delete<T>(T obj, string category = null)
-            where T : class
-        {
-            if (await ItemExistsAndAvailable(obj, category).ConfigureAwait(false))
-            {
-                return
-                    await _processingQueue
+            return
+                _processingQueue
                     .Queue(
                         () =>
                         {
                             var syncCollection = GetSynchronizableTypeCollection<T>();
-                            syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Delete, category));
-                            return true;
-                        })
-                    .ConfigureAwait(false);
-            }
+                            if (ItemExistsAndAvailable(obj, category))
+                            {
+                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
+                            }
 
-            return false;
+                            syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
+
+                            return true;
+                        });
+        }
+
+        public Task<bool> Delete<T>(T obj, string category = null)
+            where T : class
+        {
+            return
+                _processingQueue
+                    .Queue(
+                        () =>
+                        {
+                            if (ItemExistsAndAvailable(obj, category))
+                            {
+                                var syncCollection = GetSynchronizableTypeCollection<T>();
+                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Delete, category));
+                                return true;
+                            }
+
+                            return false;
+                        });
         }
 
         public async Task<bool> ReplaceSyncQueueHistory<T>(T obj, string category = null)

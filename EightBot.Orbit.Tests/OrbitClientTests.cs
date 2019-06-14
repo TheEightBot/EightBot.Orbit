@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.IO;
 using EightBot.Orbit.Client;
 using System.Linq;
@@ -439,7 +439,7 @@ namespace EightBot.Orbit.Tests
 
                 var insert1Test =
                     Task.Run(
-                        () =>
+                        async () =>
                         {
                             for (int i = 1; i <= max; i++)
                             {
@@ -450,7 +450,7 @@ namespace EightBot.Orbit.Tests
 
                 var insert2Test =
                     Task.Run(
-                        () =>
+                        async () =>
                         {
                             for (int i = 1; i <= max; i++)
                             {
@@ -464,11 +464,15 @@ namespace EightBot.Orbit.Tests
                 var found1 = await _client.GetLatest<TestClassA>(id1);
                 var found2 = await _client.GetLatest<TestClassA>(id2);
 
+                Assert.IsNotNull(found1);
                 Assert.IsTrue(found1.IntProperty == max);
+
+                Assert.IsNotNull(found2);
                 Assert.IsTrue(found2.IntProperty == max);
             }
             catch (Exception ex)
             {
+                Console.WriteLine(ex.StackTrace);
                 Assert.Fail($"Expected to not fail, but received: {ex.Message}");
             }
         }

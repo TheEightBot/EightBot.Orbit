@@ -4,7 +4,7 @@ using System.Reflection;
 
 namespace EightBot.Orbit.Client
 {
-    internal class RegisteredTypeInformation
+    internal struct RegisteredTypeInformation
     {
         public PropertyInfo PropertyIdSelector { get; set; }
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -23,7 +23,7 @@ namespace EightBot.Orbit.Client
 
         private readonly object _scaffoldingLock = new object();
 
-        private ISyncReconciler _syncReconciler;
+        private readonly ISyncReconciler _syncReconciler;
 
         private readonly Dictionary<Type, RegisteredTypeInformation> _registeredTypes =
             new Dictionary<Type, RegisteredTypeInformation>();

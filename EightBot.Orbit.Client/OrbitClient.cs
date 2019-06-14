@@ -109,13 +109,9 @@ namespace EightBot.Orbit.Client
 
                 _registeredTypes[rti.ObjectType] = rti;
 
-                var typeCollection = _db.GetCollection(rti.TypeName);
-
-                BsonMapper.Global
+                _db.Mapper
                     .Entity<T>()
                     .Id(idSelector, false);
-
-                typeCollection.EnsureIndex(rti.IdProperty);
             }
 
 
@@ -134,13 +130,9 @@ namespace EightBot.Orbit.Client
 
                 _registeredTypes[rti.ObjectType] = rti;
 
-                var typeCollection = _db.GetCollection(rti.TypeName);
-
-                BsonMapper.Global
+                _db.Mapper
                     .Entity<T>()
                     .Id(idProperty, false);
-
-                typeCollection.EnsureIndex(rti.IdProperty);
             }
 
             return this;

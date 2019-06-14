@@ -599,34 +599,30 @@ namespace EightBot.Orbit.Client
                     .ConfigureAwait(false);
         }
 
-        private Task<bool> ItemExistsAndAvailable<T>(T obj, string category = null)
+        private bool ItemExistsAndAvailable<T>(T obj, string category = null)
             where T : class
         {
             var id = GetId(obj);
             return ItemExistsAndAvailableWithId<T>(id, category);
         }
 
-        private Task<bool> ItemExistsAndAvailableWithId<T>(string id, string category = null)
+        private bool ItemExistsAndAvailableWithId<T>(string id, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                    var deleted =
-                        syncCollection
-                            .Count(
-                                Query.And(
-                                    Query.EQ(
-                                        SynchronizableOperationIndex, (int)ClientOperationType.Delete),
-                                        GetItemQueryWithId<T>(id, category)));
+            var deleted =
+                syncCollection
+                    .Count(
+                        Query.And(
+                            Query.EQ(
+                                SynchronizableOperationIndex, (int)ClientOperationType.Delete),
+                                GetItemQueryWithId<T>(id, category)));
 
-                    if (deleted > 0)
-                        return false;
+            if (deleted > 0)
+                return false;
 
-                    return syncCollection.Count(GetItemQueryWithId<T>(id, category)) > 0;
-                });
+            return syncCollection.Count(GetItemQueryWithId<T>(id, category)) > 0;
         }
 
         private Task<Synchronizable<T>> GetLatestSyncQueue<T>(string id, string category = null)

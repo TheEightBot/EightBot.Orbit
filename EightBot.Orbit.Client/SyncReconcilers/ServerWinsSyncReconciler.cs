@@ -8,6 +8,7 @@ namespace EightBot.Orbit.Client.SyncReconcilers
             switch (server.Operation)
             {
                 case ServerOperationType.Created:
+                case ServerOperationType.Updated:
                     return SyncReconciliationAction.ReplaceWithServerValue;
                 case ServerOperationType.Deleted:
                     return SyncReconciliationAction.RemoveClientValue;

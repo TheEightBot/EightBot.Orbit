@@ -525,7 +525,7 @@ namespace EightBot.Orbit.Client
                         case SyncType.FullHistory:
                             return syncCollection
                                 .Find(GetItemQuery<T>(category, categorySearch))
-                                ?.OrderByDescending(x => x.ModifiedTimestamp)
+                                ?.OrderBy(x => x.ModifiedTimestamp)
                                 ?.Select(x => GetAsClientSyncInfo(x))
                                 ?.ToList()
                                 ?? Enumerable.Empty<ClientSyncInfo<T>>();

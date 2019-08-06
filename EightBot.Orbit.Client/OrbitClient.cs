@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -94,6 +94,8 @@ namespace EightBot.Orbit.Client
 
                 _db?.Dispose();
                 _db = null;
+
+                Initialized = false;
             }
         }
 

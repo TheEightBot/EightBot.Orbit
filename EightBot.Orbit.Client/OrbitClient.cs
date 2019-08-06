@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -442,7 +442,7 @@ namespace EightBot.Orbit.Client
         public async Task<bool> PopulateCache<T>(IEnumerable<T> items, string category = null, bool terminateSyncQueueHistory = false)
             where T : class
         {
-            if(!(await DropTypeCollection<T>(category).ConfigureAwait(false)))
+            if(!(await DropCache<T>(category).ConfigureAwait(false)))
             {
                 return false;
             }
@@ -461,6 +461,53 @@ namespace EightBot.Orbit.Client
                         })
                     .ConfigureAwait(false);
 
+        }
+
+        public Task<bool> DropCache<T>(string category = null)
+        {
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var rti = _registeredTypes[typeof(T)];
+                    var ctn = rti.GetCategoryTypeName(category);
+
+                    if (!_db.CollectionExists(ctn))
+                        return true;
+
+                    return _db.DropCollection(ctn);
+                });
+        }
+
+        public async Task<bool> DeleteCacheItem<T>(T item, string category = null)
+            where T : class
+        {
+            return
+                await _processingQueue
+                    .Queue(
+                        () =>
+                        {
+                            var typeCollection = GetTypeCollection<T>(category);
+
+                            return typeCollection.Delete(GetItemQuery<T>(item, category)) == 1;
+                        })
+                    .ConfigureAwait(false);
+
+        }
+
+        public async Task<bool> UpsertCacheItem<T>(T item, string category = null)
+            where T : class
+        {
+            return
+                await _processingQueue
+                    .Queue(
+                        () =>
+                        {
+                            var typeCollection = GetTypeCollection<T>(category);
+                            var itemQuery = GetItemQuery<T>(item, category);
+
+                            return typeCollection.Upsert(item);
+                        })
+                    .ConfigureAwait(false);
         }
 
         public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(string id, string category = null)
@@ -555,53 +602,6 @@ namespace EightBot.Orbit.Client
 
                     return 0;
                 });
-        }
-
-        public Task<bool> DropTypeCollection<T>(string category = null)
-        {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var rti = _registeredTypes[typeof(T)];
-                    var ctn = rti.GetCategoryTypeName(category);
-
-                    if (!_db.CollectionExists(ctn))
-                        return true;
-
-                    return _db.DropCollection(ctn);
-                });
-        }
-
-        public async Task<bool> DeleteCacheItem<T>(T item, string category = null)
-            where T : class
-        {
-            return
-                await _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var typeCollection = GetTypeCollection<T>(category);
-
-                            return typeCollection.Delete(GetItemQuery<T>(item, category)) == 1;
-                        })
-                    .ConfigureAwait(false);
-
-        }
-
-        public async Task<bool> UpsertCacheItem<T>(T item, string category = null)
-            where T : class
-        {
-            return
-                await _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var typeCollection = GetTypeCollection<T>(category);
-                            var itemQuery = GetItemQuery<T>(item, category);
-
-                            return typeCollection.Upsert(item);
-                        })
-                    .ConfigureAwait(false);
         }
 
         private bool ItemExistsAndAvailable<T>(T obj, string category = null)

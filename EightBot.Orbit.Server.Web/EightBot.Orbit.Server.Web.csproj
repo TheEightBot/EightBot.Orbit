@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netcoreapp2.2</TargetFramework>
@@ -7,6 +7,7 @@
     <Company>Eight-Bot</Company>
     <Authors>Nathan</Authors>
     <Description>Web / Api components for orbit server framework</Description>
+    <Version>1.0.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

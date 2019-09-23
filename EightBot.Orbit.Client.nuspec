@@ -7,7 +7,7 @@
         <authors>Eight-Bot, Inc.</authors>
         <owners>Eight-Bot, Inc.</owners>
         <tags>xamarin forms xamarinforms xamarin.forms</tags>
-        <PackageIconUrl>https://cdn3.iconfinder.com/data/icons/unigrid-phantom-science-vol-1/60/003_002_moon_orbit_ecuator_sputnik_satellite-128.png</PackageIconUrl>
+        <iconUrl>https://img.icons8.com/color/48/000000/satellite-sending-signal.png</iconUrl>
         <projectUrl>https://github.com/TheEightBot/Eightbot.Orbit</projectUrl>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
         <description>Synching client for .net</description>

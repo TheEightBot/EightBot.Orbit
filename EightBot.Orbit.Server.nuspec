@@ -6,7 +6,7 @@
         <authors>Eight-Bot, Inc.</authors>
         <owners>Eight-Bot, Inc.</owners>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
-        <iconUrl>https://cdn3.iconfinder.com/data/icons/unigrid-phantom-science-vol-1/60/003_002_moon_orbit_ecuator_sputnik_satellite-128.png</iconUrl>
+        <iconUrl>https://img.icons8.com/color/48/000000/satellite-sending-signal.png</iconUrl>
         <description>Server side sync compents</description>
         <dependencies>
             <group targetFramework=".NETStandard2.0">

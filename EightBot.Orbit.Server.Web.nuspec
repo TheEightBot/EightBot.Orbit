@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+    <metadata>
+        <id>EightBot.Orbit.Server.Web</id>
+        <version>$version$</version>
+        <authors>Eight-Bot, Inc.</authors>
+        <owners>Eight-Bot, Inc.</owners>
+        <requireLicenseAcceptance>false</requireLicenseAcceptance>
+        <iconUrl>https://cdn3.iconfinder.com/data/icons/unigrid-phantom-science-vol-1/60/003_002_moon_orbit_ecuator_sputnik_satellite-128.png</iconUrl>
+        <description>Web / Api components for orbit server framework</description>
+        <dependencies>
+            <group targetFramework=".NETCoreApp2.2">
+                <dependency id="EightBot.Orbit.Server" version="$version$" exclude="Build,Analyzers" />
+                <dependency id="Microsoft.AspNetCore.Mvc.Core" version="2.2.5" exclude="Build,Analyzers" />
+            </group>
+        </dependencies>
+    </metadata>
+    <files>
+        <!--netstandard-->
+        <file src="EightBot.Orbit.Server.Web\bin\Release\netcoreapp2.2\EightBot.Orbit.Server.Web.dll" target="lib\netcoreapp2.2" />
+    </files>
+</package>

@@ -1,9 +1,9 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using EightBot.Orbit.Client;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Threading;
+using EightBot.Orbit.Client;
 
 namespace EightBot.Orbit.Tests
 {

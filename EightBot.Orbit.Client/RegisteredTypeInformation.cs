@@ -10,6 +10,8 @@ namespace EightBot.Orbit.Client
 
         public Delegate FuncIdSelector { get; set; }
 
+        public bool RequiresIdMapping { get; set; }
+
         public string IdProperty { get; set; }
 
         public string TypeFullName { get; set; }
@@ -20,7 +22,7 @@ namespace EightBot.Orbit.Client
 
         public Type ObjectType { get; set; }
 
-        public static RegisteredTypeInformation Create<T, TId>(Expression<Func<T, TId>> idSelector, string typeNameOverride = null)
+        public static RegisteredTypeInformation Create<T, TId>(Expression<Func<T, TId>> idSelector, bool requiresIdMapping = false, string typeNameOverride = null)
         {
             if (idSelector.Body is MemberExpression mex && mex.Member is PropertyInfo pi)
             {

@@ -52,8 +52,8 @@ namespace OrbitSample.Server.Web
             {
                 Task.Run(async () =>
                 {
-                    await x.EnsureCollectionAsync<Models.User>(y=> y.Username, y => y.Company.Name);
-                    await x.EnsureCollectionAsync<Models.Post>(y => y.Id, y => y.UserId);
+                    await x.EnsureContainerAsync<Models.User>(y=> y.Username, y => y.Company.Name);
+                    await x.EnsureContainerAsync<Models.Post>(y => y.Id, y => y.UserId);
                 }).Wait();
             });
 

@@ -1,14 +1,14 @@
 using EightBot.Nebula.DocumentDb;
 using EightBot.Orbit.Server;
 using EightBot.Orbit.Server.Data;
-using Microsoft.Azure.Documents;
-using Microsoft.Azure.Documents.Client;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Debug;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace EightBot.Orbit.Tests
@@ -35,16 +35,18 @@ namespace EightBot.Orbit.Tests
 
             var documentDbLogger = Logger.CreateLogger("EightBot.Nebula.DocumentDb");
 
-            var dataClient = new DataClient(databaseUri, authKey, databaseId, null)
+            var comosClient = new CosmosClient(databaseUri, authKey);
+
+            var database = await comosClient.CreateDatabaseIfNotExistsAsync(databaseId, 400);
+
+            var dataClient = new DataClient(database, () => Thread.CurrentPrincipal?.Identity?.Name ?? "test")
             {
                 ThrowErrors = true,
-                LogError = y => documentDbLogger?.LogError(y),
-                LogInformation = y => documentDbLogger?.LogInformation(y)
+                LogError = y => documentDbLogger.LogError(y),
+                LogInformation = y => documentDbLogger.LogInformation(y)
             };
 
-            await dataClient.Client.CreateDatabaseIfNotExistsAsync(new Database { Id = databaseId }, new RequestOptions() { OfferThroughput = 400 });
-
-            await dataClient.EnsureCollectionAsync<TestClassA>(x => x.StringProperty, x => x.IntProperty);
+            await dataClient.EnsureContainerAsync<TestClassA>(x => x.StringProperty, x => x.IntProperty);
 
             this.OrbitDataClient = new OrbitCosmosDataClient(dataClient);
             this.DataClient = dataClient;

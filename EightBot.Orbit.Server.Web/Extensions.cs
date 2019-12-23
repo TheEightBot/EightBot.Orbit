@@ -2,11 +2,10 @@
 using EightBot.Orbit.Server;
 using EightBot.Orbit.Server.Data;
 using EightBot.Orbit.Server.Web;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Azure.Documents;
-using Microsoft.Azure.Documents.Client;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Threading;
 
 namespace Microsoft.Extensions.DependencyInjection
 {
@@ -28,18 +27,22 @@ namespace Microsoft.Extensions.DependencyInjection
 
         public static IServiceCollection AddDefaultOrbitSyncCosmosDataClient(this IServiceCollection services, string endpointUri, string authKey, string databaseId, Action<IDataClient> config, bool throwErrors = true, int? throughput = 400)
         {
+            services.AddSingleton(x => new CosmosClient(endpointUri, authKey));
+
             services.AddSingleton<IDataClient, DataClient>(x =>
             {
                 var documentDbLogger = x.GetRequiredService<ILoggerFactory>().CreateLogger("EightBot.Nebula.DocumentDb");
 
-                var dataClient = new DataClient(endpointUri, authKey, databaseId, x.GetService<IHttpContextAccessor>()?.HttpContext.User)
+                var comosClient = x.GetRequiredService<CosmosClient>();
+
+                var database = comosClient.CreateDatabaseIfNotExistsAsync(databaseId, throughput).Result;
+
+                var dataClient = new DataClient(database, () => Thread.CurrentPrincipal?.Identity?.Name ?? "test")
                 {
-                    ThrowErrors = true,
+                    ThrowErrors = throwErrors,
                     LogError = y => documentDbLogger.LogError(y),
                     LogInformation = y => documentDbLogger.LogInformation(y)
                 };
-
-                dataClient.Client.CreateDatabaseIfNotExistsAsync(new Database { Id = databaseId }, new RequestOptions() { OfferThroughput = 400 }).Wait();
 
                 config.Invoke(dataClient);
 

@@ -1,5 +1,5 @@
 ﻿using EightBot.Nebula.DocumentDb;
-using Microsoft.Azure.Documents;
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -41,7 +41,11 @@ namespace EightBot.Orbit.Server.Data
                         {
                             var existingDocumentWithBase = await this.DataClient.Document<T>().GetWithBaseAsync(id, partitionKey).ConfigureAwait(false);
                             if (existingDocumentWithBase.Document == null)
-                                await AddToPayload(await this.DataClient.Document<T>().UpsertAsync(syncable.Value).ConfigureAwait(false), partitionKey, ServerOperationType.Created, DateTime.UtcNow, default(T), payload);
+                            {
+                                var success = await this.DataClient.Document<T>().UpsertAsync(syncable.Value).ConfigureAwait(false);
+                                if (success)
+                                    await AddToPayload(id, partitionKey, ServerOperationType.Created, DateTime.UtcNow, default(T), payload);
+                            }
                             else
                             {
                                 var serverLastModified = existingDocumentWithBase.BaseDocument.Timestamp;
@@ -50,7 +54,10 @@ namespace EightBot.Orbit.Server.Data
                                 if (serverLastModified > syncableLastModified)
                                     await AddToPayload(id, partitionKey, ServerOperationType.Updated, serverLastModified, existingDocumentWithBase.Document, payload);
                                 else
-                                    await AddToPayload(await this.DataClient.Document<T>().UpsertAsync(syncable.Value).ConfigureAwait(false), partitionKey, ServerOperationType.Updated, DateTime.UtcNow, default(T), payload);
+                                {
+                                    var success = await this.DataClient.Document<T>().UpsertAsync(syncable.Value).ConfigureAwait(false);
+                                    await AddToPayload(id, partitionKey, ServerOperationType.Updated, DateTime.UtcNow, default(T), payload);
+                                }
                             }
                         }
                         else if (syncables.ElementAt(i).Operation == ClientOperationType.Delete)

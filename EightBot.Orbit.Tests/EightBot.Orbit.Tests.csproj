@@ -19,6 +19,7 @@
     <ProjectReference Include="..\EightBot.Orbit.Core\EightBot.Orbit.Core.csproj" />
     <ProjectReference Include="..\EightBot.Orbit.Server.Web\EightBot.Orbit.Server.Web.csproj" />
     <ProjectReference Include="..\EightBot.Orbit.Server\EightBot.Orbit.Server.csproj" />
+    <ProjectReference Include="..\EightBot.Orbit.Client\EightBot.Orbit.Client.csproj" />
   </ItemGroup>
 
   <ItemGroup>

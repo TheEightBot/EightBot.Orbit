@@ -94,10 +94,12 @@ namespace EightBot.Orbit.Client
 
                 _db?.Dispose();
                 _db = null;
+
+                Initialized = false;
             }
         }
 
-        public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, TId>> idSelector, string typeNameOverride = null)
+        public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, TId>> idSelector, bool requiresIdMapping = false, string typeNameOverride = null)
             where T : class
         {
             lock(_scaffoldingLock)
@@ -105,20 +107,23 @@ namespace EightBot.Orbit.Client
                 if (!Initialized)
                     throw new ClientNotInitializedException($"{nameof(Initialize)} must be called before you can add type registrations.");
 
-                var rti = RegisteredTypeInformation.Create(idSelector, typeNameOverride);
+                var rti = RegisteredTypeInformation.Create(idSelector, requiresIdMapping, typeNameOverride);
 
                 _registeredTypes[rti.ObjectType] = rti;
 
-                _db.Mapper
-                    .Entity<T>()
-                    .Id(idSelector, false);
+                if(requiresIdMapping)
+                {
+                    _db.Mapper
+                        .Entity<T>()
+                        .Id(idSelector, false);
+                }
             }
 
 
             return this;
         }
 
-        public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, string>> idSelector, Expression<Func<T, TId>> idProperty, string typeNameOverride = null)
+        public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, string>> idSelector, Expression<Func<T, TId>> idProperty, bool requiresIdMapping = false, string typeNameOverride = null)
             where T : class
         {
             lock(_scaffoldingLock)
@@ -130,9 +135,12 @@ namespace EightBot.Orbit.Client
 
                 _registeredTypes[rti.ObjectType] = rti;
 
-                _db.Mapper
-                    .Entity<T>()
-                    .Id(idProperty, false);
+                if(requiresIdMapping)
+                {
+                    _db.Mapper
+                        .Entity<T>()
+                        .Id(idProperty, false);
+                }
             }
 
             return this;
@@ -212,87 +220,6 @@ namespace EightBot.Orbit.Client
 
                             return false;
                         });
-        }
-
-        public async Task<bool> ReplaceSyncQueueHistory<T>(T obj, string category = null)
-            where T : class
-        {
-            if (!(await TerminateSyncQueueHisory(obj, category).ConfigureAwait(false)))
-                return false;
-
-            return await Create(obj, category).ConfigureAwait(false);
-        }
-
-        public Task<bool> TerminateSyncQueueHisory<T>(T obj, string category = null)
-            where T : class
-        {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
-
-                    return syncCollection.Delete(GetItemQuery(obj, category)) > 0;
-                });
-        }
-
-        public Task<bool> TerminateSyncQueueHisory<T>(string category = null)
-            where T : class
-        {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
-
-                    return syncCollection.Delete(GetItemQuery<T>(category)) > 0;
-                });
-        }
-
-        public Task<bool> TerminateSyncQueueHistoryAt<T>(T obj, DateTimeOffset offset, string category = null)
-            where T : class
-        {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
-
-                    return syncCollection
-                        .Delete(
-                            Query.And(
-                                GetItemQuery(obj, category),
-                                Query.EQ(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
-                });
-        }
-
-        public Task<bool> TerminateSyncQueueHistoryBefore<T>(T obj, DateTimeOffset offset, string category = null)
-            where T : class
-        {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
-
-                    return syncCollection
-                        .Delete(
-                            Query.And(
-                                GetItemQuery(obj, category),
-                                Query.LT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
-                });
-        }
-
-        public Task<bool> TerminateSyncQueueHistoryAfter<T>(T obj, DateTimeOffset offset, string category = null)
-            where T : class
-        {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
-
-                    return syncCollection
-                        .Delete(
-                            Query.And(
-                                GetItemQuery(obj, category),
-                                Query.GT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
-                });
         }
 
         public async Task<IEnumerable<string>> GetCategories<T>()
@@ -440,12 +367,12 @@ namespace EightBot.Orbit.Client
         public async Task<bool> PopulateCache<T>(IEnumerable<T> items, string category = null, bool terminateSyncQueueHistory = false)
             where T : class
         {
-            if(!(await DropTypeCollection<T>(category).ConfigureAwait(false)))
+            if(!(await DropCache<T>(category).ConfigureAwait(false)))
             {
                 return false;
             }
 
-            if (terminateSyncQueueHistory && !(await TerminateSyncQueueHisory<T>(category).ConfigureAwait(false)))
+            if (terminateSyncQueueHistory && !(await TerminateSyncQueueHistory<T>(category).ConfigureAwait(false)))
                 return false;
 
             return 
@@ -459,6 +386,53 @@ namespace EightBot.Orbit.Client
                         })
                     .ConfigureAwait(false);
 
+        }
+
+        public Task<bool> DropCache<T>(string category = null)
+        {
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var rti = _registeredTypes[typeof(T)];
+                    var ctn = rti.GetCategoryTypeName(category);
+
+                    if (!_db.CollectionExists(ctn))
+                        return true;
+
+                    return _db.DropCollection(ctn);
+                });
+        }
+
+        public async Task<bool> DeleteCacheItem<T>(T item, string category = null)
+            where T : class
+        {
+            return
+                await _processingQueue
+                    .Queue(
+                        () =>
+                        {
+                            var typeCollection = GetTypeCollection<T>(category);
+
+                            return typeCollection.Delete(GetItemQuery<T>(item, category)) == 1;
+                        })
+                    .ConfigureAwait(false);
+
+        }
+
+        public async Task<bool> UpsertCacheItem<T>(T item, string category = null)
+            where T : class
+        {
+            return
+                await _processingQueue
+                    .Queue(
+                        () =>
+                        {
+                            var typeCollection = GetTypeCollection<T>(category);
+                            var itemQuery = GetItemQuery<T>(item, category);
+
+                            return typeCollection.Upsert(item);
+                        })
+                    .ConfigureAwait(false);
         }
 
         public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(string id, string category = null)
@@ -523,7 +497,7 @@ namespace EightBot.Orbit.Client
                         case SyncType.FullHistory:
                             return syncCollection
                                 .Find(GetItemQuery<T>(category, categorySearch))
-                                ?.OrderByDescending(x => x.ModifiedTimestamp)
+                                ?.OrderBy(x => x.ModifiedTimestamp)
                                 ?.Select(x => GetAsClientSyncInfo(x))
                                 ?.ToList()
                                 ?? Enumerable.Empty<ClientSyncInfo<T>>();
@@ -555,51 +529,85 @@ namespace EightBot.Orbit.Client
                 });
         }
 
-        public Task<bool> DropTypeCollection<T>(string category = null)
+        public async Task<bool> ReplaceSyncQueueHistory<T>(T obj, string category = null)
+            where T : class
+        {
+            if (!(await TerminateSyncQueueHistory(obj, category).ConfigureAwait(false)))
+                return false;
+
+            return await Create(obj, category).ConfigureAwait(false);
+        }
+
+        public Task<bool> TerminateSyncQueueHistory<T>(T obj, string category = null)
+            where T : class
         {
             return _processingQueue.Queue(
                 () =>
                 {
-                    var rti = _registeredTypes[typeof(T)];
-                    var ctn = rti.GetCategoryTypeName(category);
+                    var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                    if (!_db.CollectionExists(ctn))
-                        return true;
-
-                    return _db.DropCollection(ctn);
+                    return syncCollection.Delete(GetItemQuery(obj, category)) > 0;
                 });
         }
 
-        public async Task<bool> DeleteCacheItem<T>(T item, string category = null)
+        public Task<bool> TerminateSyncQueueHistory<T>(string category = null)
             where T : class
         {
-            return
-                await _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var typeCollection = GetTypeCollection<T>(category);
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                            return typeCollection.Delete(GetItemQuery<T>(item, category)) == 1;
-                        })
-                    .ConfigureAwait(false);
-
+                    return syncCollection.Delete(GetItemQuery<T>(category)) > 0;
+                });
         }
 
-        public async Task<bool> UpsertCacheItem<T>(T item, string category = null)
+        public Task<bool> TerminateSyncQueueHistoryAt<T>(T obj, DateTimeOffset offset, string category = null)
             where T : class
         {
-            return
-                await _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var typeCollection = GetTypeCollection<T>(category);
-                            var itemQuery = GetItemQuery<T>(item, category);
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                            return typeCollection.Upsert(item);
-                        })
-                    .ConfigureAwait(false);
+                    return syncCollection
+                        .Delete(
+                            Query.And(
+                                GetItemQuery(obj, category),
+                                Query.EQ(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
+                });
+        }
+
+        public Task<bool> TerminateSyncQueueHistoryBefore<T>(T obj, DateTimeOffset offset, string category = null)
+            where T : class
+        {
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var syncCollection = GetSynchronizableTypeCollection<T>();
+
+                    return syncCollection
+                        .Delete(
+                            Query.And(
+                                GetItemQuery(obj, category),
+                                Query.LT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
+                });
+        }
+
+        public Task<bool> TerminateSyncQueueHistoryAfter<T>(T obj, DateTimeOffset offset, string category = null)
+            where T : class
+        {
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var syncCollection = GetSynchronizableTypeCollection<T>();
+
+                    return syncCollection
+                        .Delete(
+                            Query.And(
+                                GetItemQuery(obj, category),
+                                Query.GT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
+                });
         }
 
         private bool ItemExistsAndAvailable<T>(T obj, string category = null)
@@ -741,25 +749,8 @@ namespace EightBot.Orbit.Client
 
                 var result = _syncReconciler.Reconcile(serverSyncInfo, GetAsClientSyncInfo(clientInfo));
 
-                switch (result)
-                {
-                    case SyncReconciliationAction.KeepClientValue:
-                        await TerminateSyncQueueHisory(clientInfo.Value, category).ConfigureAwait(false);
-                        await UpsertCacheItem(clientInfo.Value, category).ConfigureAwait(false);
-                        break;
-                    case SyncReconciliationAction.RemoveClientValue:
-                        await TerminateSyncQueueHisory(clientInfo.Value, category).ConfigureAwait(false);
-                        await DeleteCacheItem(clientInfo.Value, category);
-                        break;
-                    case SyncReconciliationAction.ReplaceWithServerValue:
-                        await TerminateSyncQueueHisory(clientInfo.Value, category).ConfigureAwait(false);
-                        await UpsertCacheItem(serverSyncInfo.Value, category).ConfigureAwait(false);
-                        break;
-                    case SyncReconciliationAction.None:
-                    default:
-                        //This likely occurred because of an error on the server or similar, so we will hold onto the value
-                        break;
-                }
+                await TerminateSyncQueueHistory(clientInfo.Value, category).ConfigureAwait(false);
+                await UpsertCacheItem(result, category).ConfigureAwait(false);
             }
         }
 

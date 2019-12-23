@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+    <metadata>
+        <id>EightBot.Orbit.Server</id>
+        <title>Orbit Sync Server Components by Eight-Bot</title>
+        <version>$version$</version>
+        <authors>Eight-Bot, Inc.</authors>
+        <owners>Eight-Bot, Inc.</owners>
+        <requireLicenseAcceptance>false</requireLicenseAcceptance>
+        <iconUrl>https://img.icons8.com/color/128/000000/satellite-sending-signal.png</iconUrl>
+        <description>Server side sync compents</description>
+        <dependencies>
+            <group targetFramework=".NETStandard2.0">
+                <dependency id="EightBot.Orbit.Core" version="$version$" exclude="Build,Analyzers" />
+                <dependency id="EightBot.Nebula.DocumentDb" version="1.2.6" exclude="Build,Analyzers" />
+            </group>
+        </dependencies>
+    </metadata>
+    <files>
+        <!--netstandard-->
+        <file src="EightBot.Orbit.Server\bin\Release\netstandard2.0\EightBot.Orbit.Server.dll" target="lib\netstandard2.0" />
+    </files>
+</package>

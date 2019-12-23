@@ -439,7 +439,7 @@ namespace EightBot.Orbit.Tests
 
                 var insert1Test =
                     Task.Run(
-                        async () =>
+                        () =>
                         {
                             for (int i = 1; i <= max; i++)
                             {
@@ -450,7 +450,7 @@ namespace EightBot.Orbit.Tests
 
                 var insert2Test =
                     Task.Run(
-                        async () =>
+                        () =>
                         {
                             for (int i = 1; i <= max; i++)
                             {

@@ -42,6 +42,8 @@ namespace EightBot.Orbit.Server.Data
                             var existingDocumentWithBase = await this.DataClient.Document<T>().GetWithBaseAsync(id, partitionKey).ConfigureAwait(false);
                             if (existingDocumentWithBase.Document == null)
                             {
+                               var pk =  this.DataClient.GetPartitionKey<T>(syncable.Value);
+
                                 var success = await this.DataClient.Document<T>().UpsertAsync(syncable.Value).ConfigureAwait(false);
                                 if (success)
                                     await AddToPayload(id, partitionKey, ServerOperationType.Created, DateTime.UtcNow, default(T), payload);

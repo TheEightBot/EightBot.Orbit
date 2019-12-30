@@ -5,6 +5,7 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Debug;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -46,7 +47,8 @@ namespace EightBot.Orbit.Tests
                 LogInformation = y => documentDbLogger.LogInformation(y)
             };
 
-            await dataClient.EnsureContainerAsync<TestClassA>(x => x.StringProperty, x => x.IntProperty);
+            await dataClient.EnsureContainerAsync<TestClassA>(x => x.StringProperty, x => x.PK);
+            //await dataClient.EnsureContainerAsync<TestClassA2>(x => x.StringProperty, x => x.PK);
 
             this.OrbitDataClient = new OrbitCosmosDataClient(dataClient);
             this.DataClient = dataClient;
@@ -71,7 +73,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Create,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"One{i}", IntProperty = 100, DoubleProperty = 1.00 }
+                    Value = new TestClassA() { StringProperty = $"One{i}", PK = "test", IntProperty = 100, DoubleProperty = 1.00 }
                 });
             }
 
@@ -92,7 +94,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Update,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"One{i}", IntProperty = 100, DoubleProperty = 1.01 }
+                    Value = new TestClassA() { StringProperty = $"One{i}", PK = "test", IntProperty = 100, DoubleProperty = 1.01 }
                 });
             }
 
@@ -117,7 +119,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Delete,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"One{i}", IntProperty = 100, DoubleProperty = 1.02 }
+                    Value = new TestClassA() { StringProperty = $"One{i}", PK = "test", IntProperty = 100, DoubleProperty = 1.02 }
                 });
             }
 
@@ -143,7 +145,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Create,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"OneHundred{i}", IntProperty = 100, DoubleProperty = 1.00 }
+                    Value = new TestClassA() { StringProperty = $"OneHundred{i}", PK = "test", IntProperty = 100, DoubleProperty = 1.00 }
                 });
             }
 
@@ -169,7 +171,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Create,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"OneHundred{i}", IntProperty = 100, DoubleProperty = 1.01 }
+                    Value = new TestClassA() { StringProperty = $"OneHundred{i}", PK = "test", IntProperty = 100, DoubleProperty = 1.01 }
                 });
             }
 
@@ -199,7 +201,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Delete,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"OneHundred{i}", IntProperty = 100, DoubleProperty = 1.02 }
+                    Value = new TestClassA() { StringProperty = $"OneHundred{i}", PK = "test", IntProperty = 100, DoubleProperty = 1.02 }
                 });
             }
 
@@ -227,7 +229,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Create,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"OneThousand{i}", IntProperty = 100, DoubleProperty = 1.00 }
+                    Value = new TestClassA() { StringProperty = $"OneThousand{i}", PK = "test", IntProperty = 100, DoubleProperty = 1.00 }
                 });
             }
 
@@ -253,7 +255,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Create,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"OneThousand{i}", IntProperty = 100, DoubleProperty = 1.01 }
+                    Value = new TestClassA() { StringProperty = $"OneThousand{i}", PK = "test", IntProperty = 100, DoubleProperty = 1.01 }
                 });
             }
 
@@ -283,7 +285,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Delete,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"OneThousand{i}", IntProperty = 100, DoubleProperty = 1.02 }
+                    Value = new TestClassA() { StringProperty = $"OneThousand{i}", PK = "test", IntProperty = 100, DoubleProperty = 1.02 }
                 });
             }
 
@@ -311,7 +313,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Create,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"UpdateNewer{i}", IntProperty = 100, DoubleProperty = 1.00 }
+                    Value = new TestClassA() { StringProperty = $"UpdateNewer{i}", PK = "test", IntProperty = 100, DoubleProperty = 1.00 }
                 });
             }
 
@@ -331,7 +333,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Update,
                     ModifiedOn = lastupDatedTime,
-                    Value = new TestClassA() { StringProperty = $"UpdateNewer{i}", IntProperty = 100, DoubleProperty = 999.99 }
+                    Value = new TestClassA() { StringProperty = $"UpdateNewer{i}", PK = "test", IntProperty = 100, DoubleProperty = 999.99 }
                 });
             }
 
@@ -352,7 +354,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Delete,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"UpdateNewer{i}", IntProperty = 100, DoubleProperty = 999.99 }
+                    Value = new TestClassA() { StringProperty = $"UpdateNewer{i}", PK = "test", IntProperty = 100, DoubleProperty = 999.99 }
                 });
             }
 
@@ -377,7 +379,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Create,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"UpdateOlder{i}", IntProperty = 100, DoubleProperty = 1.00 }
+                    Value = new TestClassA() { StringProperty = $"UpdateOlder{i}", PK = "test", IntProperty = 100, DoubleProperty = 1.00 }
                 });
             }
 
@@ -397,7 +399,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Update,
                     ModifiedOn = lastupDatedTime,
-                    Value = new TestClassA() { StringProperty = $"UpdateOlder{i}", IntProperty = 100, DoubleProperty = 999.99 }
+                    Value = new TestClassA() { StringProperty = $"UpdateOlder{i}", PK = "test", IntProperty = 100, DoubleProperty = 999.99 }
                 });
             }
 
@@ -418,7 +420,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Delete,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"UpdateOlder{i}", IntProperty = 100, DoubleProperty = 999.99 }
+                    Value = new TestClassA() { StringProperty = $"UpdateOlder{i}", PK = "test", IntProperty = 100, DoubleProperty = 999.99 }
                 });
             }
 
@@ -442,7 +444,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Update,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = "", IntProperty = 100, DoubleProperty = 999.99 }
+                    Value = new TestClassA() { StringProperty = Guid.NewGuid().ToString(), PK = "test", IntProperty = 100, DoubleProperty = 999.99 }
                 });
             }
 
@@ -476,7 +478,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Update,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = Guid.Empty.ToString(), IntProperty = 100, DoubleProperty = 999.99 }
+                    Value = new TestClassA() { StringProperty = Guid.Empty.ToString(), PK = "test", IntProperty = 100, DoubleProperty = 999.99 }
                 });
             }
 
@@ -488,39 +490,39 @@ namespace EightBot.Orbit.Tests
             Assert.IsTrue(results.ElementAt(0).Value == null);
         }
 
-        [TestMethod]
-        public async Task OrbitServer_OrbitCosmosClient_Create_Null_Id()
-        {
-            var count = 1;
+        //[TestMethod]
+        //public async Task OrbitServer_OrbitCosmosClient_Create_Null_Id()
+        //{
+        //    var count = 1;
 
-            var syncables = new List<ClientSyncInfo<TestClassA>>();
-            for (var i = 0; i < count; i++)
-            {
-                syncables.Add(new ClientSyncInfo<TestClassA>()
-                {
-                    Operation = ClientOperationType.Update,
-                    ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = null, IntProperty = 100, DoubleProperty = 999.99 }
-                });
-            }
+        //    var syncables = new List<ClientSyncInfo<TestClassA>>();
+        //    for (var i = 0; i < count; i++)
+        //    {
+        //        syncables.Add(new ClientSyncInfo<TestClassA>()
+        //        {
+        //            Operation = ClientOperationType.Update,
+        //            ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+        //            Value = new TestClassA() { StringProperty = null, PK = "test", IntProperty = 100, DoubleProperty = 999.99 }
+        //        });
+        //    }
 
-            var results = await this.OrbitDataClient.Sync(syncables);
+        //    var results = await this.OrbitDataClient.Sync(syncables);
 
-            Assert.IsTrue(results.Count() == count);
+        //    Assert.IsTrue(results.Count() == count);
 
-            Assert.IsTrue(results.ElementAt(0).Operation == ServerOperationType.Created);
-            Assert.IsTrue(results.ElementAt(0).Value.StringProperty.Length == 36);
-            Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
-            Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 999.99);
+        //    Assert.IsTrue(results.ElementAt(0).Operation == ServerOperationType.Created);
+        //    Assert.IsTrue(results.ElementAt(0).Value.StringProperty.Length == 36);
+        //    Assert.IsTrue(results.ElementAt(0).Value.IntProperty == 100);
+        //    Assert.IsTrue(results.ElementAt(0).Value.DoubleProperty == 999.99);
 
-            // DELETE
-            results = await this.OrbitDataClient.Sync(new List<ClientSyncInfo<TestClassA>>() { new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Delete, Value = results.ElementAt(0).Value } });
+        //    // DELETE
+        //    results = await this.OrbitDataClient.Sync(new List<ClientSyncInfo<TestClassA>>() { new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Delete, Value = results.ElementAt(0).Value } });
 
-            Assert.IsTrue(results.Count() == count);
+        //    Assert.IsTrue(results.Count() == count);
 
-            Assert.IsTrue(results.ElementAt(0).Operation == ServerOperationType.Deleted);
-            Assert.IsTrue(results.ElementAt(0).Value == null);
-        }
+        //    Assert.IsTrue(results.ElementAt(0).Operation == ServerOperationType.Deleted);
+        //    Assert.IsTrue(results.ElementAt(0).Value == null);
+        //}
 
         [TestMethod]
         public async Task OrbitServer_OrbitCosmosClient_Update_NotFound()
@@ -534,7 +536,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Update,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"UpdateNotFound{i}", IntProperty = 100, DoubleProperty = 999.99 }
+                    Value = new TestClassA() { StringProperty = $"UpdateNotFound{i}", PK = "test", IntProperty = 100, DoubleProperty = 999.99 }
                 });
             }
 
@@ -568,7 +570,7 @@ namespace EightBot.Orbit.Tests
                 {
                     Operation = ClientOperationType.Delete,
                     ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                    Value = new TestClassA() { StringProperty = $"DeleteNotFound{i}", IntProperty = 100, DoubleProperty = 999.99 }
+                    Value = new TestClassA() { StringProperty = $"DeleteNotFound{i}", PK = "test", IntProperty = 100, DoubleProperty = 999.99 }
                 });
             }
 
@@ -587,16 +589,16 @@ namespace EightBot.Orbit.Tests
 
             // CREATE
             var syncables = new List<ClientSyncInfo<TestClassA>>();
-            var item1 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer0", IntProperty = 100, DoubleProperty = 1.00 } };
-            var item2 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer1", IntProperty = 100, DoubleProperty = 1.00 } };
-            var item3 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer2", IntProperty = 100, DoubleProperty = 1.00 } };
-            var item4 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer3", IntProperty = 100, DoubleProperty = 1.00 } };
-            var item5 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer4", IntProperty = 100, DoubleProperty = 1.00 } };
-            var item6 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer5", IntProperty = 100, DoubleProperty = 1.00 } };
-            var item7 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer6", IntProperty = 100, DoubleProperty = 1.00 } };
-            var item8 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer7", IntProperty = 100, DoubleProperty = 1.00 } };
-            var item9 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer8", IntProperty = 100, DoubleProperty = 1.00 } };
-            var item10 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer9", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item1 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer0", PK = "test", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item2 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer1", PK = "test", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item3 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer2", PK = "test", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item4 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer3", PK = "test", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item5 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer4", PK = "test", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item6 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer5", PK = "test", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item7 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer6", PK = "test", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item8 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer7", PK = "test", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item9 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer8", PK = "test", IntProperty = 100, DoubleProperty = 1.00 } };
+            var item10 = new ClientSyncInfo<TestClassA>() { Operation = ClientOperationType.Create, ModifiedOn = DateTimeOffset.Now.ToUnixTimeMilliseconds(), Value = new TestClassA() { StringProperty = $"UpdateNewer9", PK = "test", IntProperty = 100, DoubleProperty = 1.00 } };
 
             syncables.Add(item1);
             syncables.Add(item2);
@@ -671,16 +673,37 @@ namespace EightBot.Orbit.Tests
 
         public class TestClassA
         {
+            [JsonProperty("StringProperty")]
             public string StringProperty { get; set; }
 
+            [JsonProperty("PK")]
+            public string PK { get; set; }
+
+            [JsonProperty("IntProperty")]
             public int IntProperty { get; set; }
 
+            [JsonProperty("DoubleProperty")]
             public double DoubleProperty { get; set; }
 
+            [JsonProperty("GuidProperty")]
             public Guid GuidProperty { get; set; } = Guid.NewGuid();
 
+            [JsonProperty("DateTimeProperty")]
             public DateTime DateTimeProperty { get; set; } = DateTime.Now;
         }
+
+        //public class TestClassA2
+        //{
+        //    public string StringProperty { get; set; }
+
+        //    public string IntProperty { get; set; }
+
+        //    public double DoubleProperty { get; set; }
+
+        //    public Guid GuidProperty { get; set; } = Guid.NewGuid();
+
+        //    public DateTime DateTimeProperty { get; set; } = DateTime.Now;
+        //}
 
 
         class TestClassB

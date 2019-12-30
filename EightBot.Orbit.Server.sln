@@ -18,6 +18,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OrbitSample.Server.Web", "O
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OrbitSample.Models", "OrbitSample.Models\OrbitSample.Models.csproj", "{128D369D-2458-4BB8-A976-981B2A782C92}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EightBot.Orbit.Client", "EightBot.Orbit.Client\EightBot.Orbit.Client.csproj", "{8D0D584A-3887-4622-8B36-EE3F729C24BD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -97,6 +99,18 @@ Global
 		{128D369D-2458-4BB8-A976-981B2A782C92}.Release|iPhone.Build.0 = Release|Any CPU
 		{128D369D-2458-4BB8-A976-981B2A782C92}.Release|iPhoneSimulator.ActiveCfg = Release|Any CPU
 		{128D369D-2458-4BB8-A976-981B2A782C92}.Release|iPhoneSimulator.Build.0 = Release|Any CPU
+		{8D0D584A-3887-4622-8B36-EE3F729C24BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8D0D584A-3887-4622-8B36-EE3F729C24BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D0D584A-3887-4622-8B36-EE3F729C24BD}.Debug|iPhone.ActiveCfg = Debug|Any CPU
+		{8D0D584A-3887-4622-8B36-EE3F729C24BD}.Debug|iPhone.Build.0 = Debug|Any CPU
+		{8D0D584A-3887-4622-8B36-EE3F729C24BD}.Debug|iPhoneSimulator.ActiveCfg = Debug|Any CPU
+		{8D0D584A-3887-4622-8B36-EE3F729C24BD}.Debug|iPhoneSimulator.Build.0 = Debug|Any CPU
+		{8D0D584A-3887-4622-8B36-EE3F729C24BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8D0D584A-3887-4622-8B36-EE3F729C24BD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8D0D584A-3887-4622-8B36-EE3F729C24BD}.Release|iPhone.ActiveCfg = Release|Any CPU
+		{8D0D584A-3887-4622-8B36-EE3F729C24BD}.Release|iPhone.Build.0 = Release|Any CPU
+		{8D0D584A-3887-4622-8B36-EE3F729C24BD}.Release|iPhoneSimulator.ActiveCfg = Release|Any CPU
+		{8D0D584A-3887-4622-8B36-EE3F729C24BD}.Release|iPhoneSimulator.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

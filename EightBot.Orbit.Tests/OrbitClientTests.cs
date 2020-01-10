@@ -48,6 +48,23 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        public async Task OrbitClient_ShutdownProcessStartup_ShouldProcess()
+        {
+            _client.Shutdown();
+            _client.Startup();
+
+            var testFile =
+                new TestClassA
+                {
+                    StringProperty = "Test Value",
+                    IntProperty = 42
+                };
+
+            var result = await _client.Create(testFile);
+            Assert.IsTrue(result);
+        }
+
+        [TestMethod]
         public async Task OrbitClient_Create_ShouldBeSuccessful()
         {
             var testFile = 

@@ -76,13 +76,16 @@ namespace EightBot.Orbit.Client
         {
             lock(_scaffoldingLock)
             {
-                if (Initialized && _db == null)
+                if (Initialized && _db != null)
                 {
-                    _db = new LiteDatabase($"Filename={CachePath};{_additionalConnectionStringParameters}");
+                    return this;
                 }
-            }
 
-            return this;
+                _db = new LiteDatabase($"Filename={CachePath};{_additionalConnectionStringParameters}");
+                Initialized = true;
+
+                return this;
+            }
         }
 
         public void Shutdown()
@@ -99,7 +102,7 @@ namespace EightBot.Orbit.Client
             }
         }
 
-        public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, TId>> idSelector, bool requiresIdMapping = false, string typeNameOverride = null)
+        public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, TId>> idSelector, Func<T, Task> additionalProcessing = null, bool requiresIdMapping = false, string typeNameOverride = null)
             where T : class
         {
             lock(_scaffoldingLock)

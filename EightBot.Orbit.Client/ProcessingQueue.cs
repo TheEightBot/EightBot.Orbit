@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks.Dataflow;
 using System.Threading.Tasks;
 using System.Threading;
@@ -6,7 +6,7 @@ using System.Runtime.Serialization;
 
 namespace EightBot.Orbit.Client
 {
-    public class ProcessingQueue
+    internal class ProcessingQueue
     {
         private readonly ActionBlock<QueuedTask> _taskProcessing;
 

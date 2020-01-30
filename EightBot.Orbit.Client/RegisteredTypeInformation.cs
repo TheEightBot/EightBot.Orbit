@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -21,6 +21,22 @@ namespace EightBot.Orbit.Client
         public string TypeNamespace { get; set; }
 
         public Type ObjectType { get; set; }
+
+        public static RegisteredTypeInformation Create<T>(string typeNameOverride = null)
+        {
+            var type = typeof(T);
+
+            var rti =
+                new RegisteredTypeInformation
+                {
+                    TypeFullName = type.FullName,
+                    TypeName = typeNameOverride ?? type.Name,
+                    TypeNamespace = type.Namespace,
+                    ObjectType = type
+                };
+
+            return rti;
+        }
 
         public static RegisteredTypeInformation Create<T, TId>(Expression<Func<T, TId>> idSelector, bool requiresIdMapping = false, string typeNameOverride = null)
         {
@@ -74,7 +90,10 @@ namespace EightBot.Orbit.Client
             if (PropertyIdSelector != null)
                 return PropertyIdSelector.GetValue(value).ToString();
 
-            return ((Func<T, string>)FuncIdSelector)(value);
+            return
+                FuncIdSelector != null
+                    ? ((Func<T, string>)FuncIdSelector)(value)
+                    : value.ToString();
         }
 
         public string GetCategoryTypeName(string category = null)

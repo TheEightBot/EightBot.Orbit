@@ -3,7 +3,9 @@ using System.Threading.Tasks.Dataflow;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Runtime.Serialization;
+using System.Runtime.CompilerServices;
 
+[assembly: InternalsVisibleTo("EightBot.Orbit.Tests")]
 namespace EightBot.Orbit.Client
 {
     internal class ProcessingQueue

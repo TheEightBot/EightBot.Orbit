@@ -30,7 +30,8 @@ namespace EightBot.Orbit.Tests
                     .AddTypeRegistration<TestClassA, string>(x => x.StringProperty)
                     .AddTypeRegistration<TestClassB, string>(x => x.StringProperty)
                     .AddTypeRegistration<TestClassC, int>(x => x.IntProperty)
-                    .AddTypeRegistration<TestClassD, float>(x => x.FloatProperty.ToString(), x => x.FloatProperty);
+                    .AddTypeRegistration<TestClassD, float>(x => x.FloatProperty.ToString(), x => x.FloatProperty)
+                    .AddTypeRegistration<string>();
         }
 
         [TestCleanup]
@@ -93,6 +94,15 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        public async Task OrbitClient_CreateString_ShouldBeSuccessful()
+        {
+            var str = "Testing";
+
+            var result = await _client.Create(str);
+            Assert.IsTrue(result);
+        }
+
+        [TestMethod]
         public async Task OrbitClient_CreateWithObjectThatUsesFuncProperty_ShouldBeSuccessful()
         {
             var testFile =
@@ -133,6 +143,16 @@ namespace EightBot.Orbit.Tests
             await _client.Create(testFile);
             var found = await _client.GetLatest(testFile);
             Assert.IsTrue(testFile.IntProperty == found.IntProperty);
+        }
+
+        [TestMethod]
+        public async Task OrbitClient_InsertStringAndGetLatest_ShouldFindMatch()
+        {
+            var testStr = "testStr";
+
+            await _client.Create(testStr);
+            var found = await _client.GetLatest(testStr);
+            Assert.IsTrue(testStr == found);
         }
 
         [TestMethod]

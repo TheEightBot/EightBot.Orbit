@@ -102,6 +102,23 @@ namespace EightBot.Orbit.Client
             }
         }
 
+        public OrbitClient AddTypeRegistration<T>(Func<T, Task> additionalProcessing = null, string typeNameOverride = null)
+            where T : class
+        {
+            lock (_scaffoldingLock)
+            {
+                if (!Initialized)
+                    throw new ClientNotInitializedException($"{nameof(Initialize)} must be called before you can add type registrations.");
+
+                var rti = RegisteredTypeInformation.Create<T>(typeNameOverride);
+
+                _registeredTypes[rti.ObjectType] = rti;
+            }
+
+
+            return this;
+        }
+
         public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, TId>> idSelector, Func<T, Task> additionalProcessing = null, bool requiresIdMapping = false, string typeNameOverride = null)
             where T : class
         {

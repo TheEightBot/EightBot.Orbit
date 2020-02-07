@@ -27,10 +27,10 @@ namespace EightBot.Orbit.Tests
             _client =
                 new OrbitClient()
                     .Initialize(tempPath, additionalConnectionStringParameters: "Mode=Exclusive;")
-                    .AddTypeRegistration<TestClassA, string>(x => x.StringProperty)
-                    .AddTypeRegistration<TestClassB, string>(x => x.StringProperty)
-                    .AddTypeRegistration<TestClassC, int>(x => x.IntProperty)
-                    .AddTypeRegistration<TestClassD, float>(x => x.FloatProperty.ToString(), x => x.FloatProperty)
+                    .AddTypeRegistration<TestClassA, string>(x => x.StringProperty, requiresIdMapping: true)
+                    .AddTypeRegistration<TestClassB, string>(x => x.StringProperty, requiresIdMapping: true)
+                    .AddTypeRegistration<TestClassC, int>(x => x.IntProperty, requiresIdMapping: true)
+                    .AddTypeRegistration<TestClassD, float>(x => x.FloatProperty.ToString(), x => x.FloatProperty, requiresIdMapping: true)
                     .AddTypeRegistration<string>();
         }
 
@@ -682,6 +682,19 @@ namespace EightBot.Orbit.Tests
             Assert.IsTrue(categories.Contains(category1));
             Assert.IsTrue(categories.Contains(category2));
             Assert.IsTrue(categories.Count == expectedCategories);
+        }
+
+        [TestMethod]
+        public async Task OrbitClient_PopulateCacheWithSimpleItems_ShouldPopulate()
+        {
+            var category1 = "category1";
+            var category2 = "category2";
+
+            await _client.PopulateCache(new[] { category1, category2 });
+
+            var latest = await _client.GetAllLatest<string>();
+
+            Assert.IsTrue(latest.Count() == 2);
         }
 
         class TestClassA

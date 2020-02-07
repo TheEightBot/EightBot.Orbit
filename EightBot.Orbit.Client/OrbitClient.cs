@@ -646,9 +646,8 @@ namespace EightBot.Orbit.Client
                 syncCollection
                     .Count(
                         Query.And(
-                            Query.EQ(
-                                SynchronizableOperationIndex, (int)ClientOperationType.Delete),
-                                GetItemQueryWithId<T>(id, category)));
+                            Query.EQ(SynchronizableOperationIndex, (int)ClientOperationType.Delete),
+                            GetItemQueryWithId<T>(id, category)));
 
             if (deleted > 0)
                 return false;

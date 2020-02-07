@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -765,9 +765,10 @@ namespace EightBot.Orbit.Client
         {
             foreach (var serverSyncInfo in serverSyncInformation)
             {
-                var clientInfo = await GetLatestSyncQueue<T>(serverSyncInfo.Id, category).ConfigureAwait(false);
+                var clientInfo = await GetLatestSyncQueue<T>(GetId(serverSyncInfo.Value), category).ConfigureAwait(false);
 
-                var result = _syncReconciler.Reconcile(serverSyncInfo, GetAsClientSyncInfo(clientInfo));
+                var csi = GetAsClientSyncInfo(clientInfo);
+                var result = _syncReconciler.Reconcile(serverSyncInfo, csi);
 
                 await TerminateSyncQueueHistory(clientInfo.Value, category).ConfigureAwait(false);
                 await UpsertCacheItem(result, category).ConfigureAwait(false);
@@ -808,7 +809,6 @@ namespace EightBot.Orbit.Client
                     collection.EnsureIndex(rti.IdProperty);
                 }
 
-                collection.EnsureIndex(rti.IdProperty);
                 return collection;
             }
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -802,6 +802,12 @@ namespace EightBot.Orbit.Client
             if (!_db.CollectionExists(ctn))
             {
                 var collection = _db.GetCollection<T>(ctn);
+
+                if(!string.IsNullOrEmpty(rti.IdProperty))
+                {
+                    collection.EnsureIndex(rti.IdProperty);
+                }
+
                 collection.EnsureIndex(rti.IdProperty);
                 return collection;
             }

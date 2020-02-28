@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -180,7 +180,7 @@ namespace EightBot.Orbit.Client
 
                     if (!syncCollection.Exists(GetItemQuery(obj, category)))
                     {
-                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Created, category));
+                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
 
                         return true;
                     }
@@ -201,7 +201,7 @@ namespace EightBot.Orbit.Client
                             if (!result.IsDeleted && result.Exists)
                             {
                                 var syncCollection = GetSynchronizableTypeCollection<T>();
-                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Updated, category));
+                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
                                 return true;
                             }
 
@@ -223,12 +223,12 @@ namespace EightBot.Orbit.Client
 
                             if (!result.IsDeleted && result.Exists)
                             {
-                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Updated, category));
+                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
                                 return true;
                             }
                             else if(!result.IsDeleted)
                             {
-                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Created, category));
+                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
                                 return true;
                             }
 
@@ -248,7 +248,7 @@ namespace EightBot.Orbit.Client
                             if (!result.IsDeleted && result.Exists)
                             {
                                 var syncCollection = GetSynchronizableTypeCollection<T>();
-                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Deleted, category));
+                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Delete, category));
                                 return true;
                             }
 
@@ -391,7 +391,7 @@ namespace EightBot.Orbit.Client
                         .Find(GetItemQuery<T>(category))
                         ?.OrderByDescending(x => x.ModifiedTimestamp)
                         ?.GroupBy(x => x.TypeId)
-                        ?.Where(x => !x.Any(i => i.Operation == (int)ClientOperationType.Deleted))
+                        ?.Where(x => !x.Any(i => i.Operation == (int)ClientOperationType.Delete))
                         ?.Select(x => x.First().Value)
                         ?.ToList()
                         ?? Enumerable.Empty<T>();
@@ -660,7 +660,7 @@ namespace EightBot.Orbit.Client
                 syncCollection
                     .Count(
                         Query.And(
-                            Query.EQ(SynchronizableOperationIndex, (int)ClientOperationType.Deleted),
+                            Query.EQ(SynchronizableOperationIndex, (int)ClientOperationType.Delete),
                             GetItemQueryWithId<T>(id, category)));
 
             var count = syncCollection.Count(GetItemQueryWithId<T>(id, category));

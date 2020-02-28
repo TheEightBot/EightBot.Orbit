@@ -773,11 +773,17 @@ namespace EightBot.Orbit.Client
             {
                 var clientInfo = await GetLatestSyncQueue<T>(GetId(serverSyncInfo.Value), category).ConfigureAwait(false);
 
-                var csi = GetAsClientSyncInfo(clientInfo);
-                var result = _syncReconciler.Reconcile(serverSyncInfo, csi);
+                if(clientInfo != null)
+                {
+                    var csi = GetAsClientSyncInfo(clientInfo);
+                    var result = _syncReconciler.Reconcile(serverSyncInfo, csi);
 
-                await TerminateSyncQueueHistory(clientInfo.Value, category).ConfigureAwait(false);
-                await UpsertCacheItem(result, category).ConfigureAwait(false);
+                    await TerminateSyncQueueHistory(clientInfo.Value, category).ConfigureAwait(false);
+                    await UpsertCacheItem(result, category).ConfigureAwait(false);
+                    continue;
+                }
+
+                await UpsertCacheItem(serverSyncInfo.Value, category).ConfigureAwait(false);
             }
         }
 

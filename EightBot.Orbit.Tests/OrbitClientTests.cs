@@ -6,6 +6,7 @@ using Bogus;
 using System;
 using Bogus.Extensions;
 using System.Threading.Tasks;
+using FluentAssertions;
 
 namespace EightBot.Orbit.Tests
 {
@@ -14,19 +15,21 @@ namespace EightBot.Orbit.Tests
     {
         OrbitClient _client;
 
+        string _tempDbFile;
+
         public OrbitClientTests()
         {
             Randomizer.Seed = new Random(42);
+
+            _tempDbFile = Path.GetTempPath();
         }
 
         [TestInitialize]
         public void Setup()
         {
-            var tempPath = Path.GetTempPath();
-
             _client =
                 new OrbitClient()
-                    .Initialize(tempPath, additionalConnectionStringParameters: "Mode=Exclusive;")
+                    .Initialize(_tempDbFile, additionalConnectionStringParameters: "Mode=Exclusive;", deleteExistingCache: true)
                     .AddTypeRegistration<TestClassA, string>(x => x.StringProperty, requiresIdMapping: true)
                     .AddTypeRegistration<TestClassB, string>(x => x.StringProperty, requiresIdMapping: true)
                     .AddTypeRegistration<TestClassC, int>(x => x.IntProperty, requiresIdMapping: true)
@@ -450,6 +453,25 @@ namespace EightBot.Orbit.Tests
 
             Assert.IsTrue(foundA.IntProperty == testFile1.IntProperty);
             Assert.IsTrue(foundB.DoubleProperty == testFile2.DoubleProperty);
+        }
+
+        [TestMethod]
+        public async Task OrbitClient_GetLatestSyncQueueWithInvalidId_ShouldFindNothing()
+        {
+            var id = "Test Value";
+
+            var testFile1 =
+                new TestClassA
+                {
+                    StringProperty = id,
+                    IntProperty = 42
+                };
+
+            await _client.Upsert(testFile1);
+
+            var foundA = await _client.GetAllLatestSyncQueue<TestClassA>(id);
+
+            foundA.Should().BeEmpty();
         }
 
         [TestMethod]

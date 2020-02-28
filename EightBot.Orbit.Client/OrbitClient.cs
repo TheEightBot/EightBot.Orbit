@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -180,7 +180,7 @@ namespace EightBot.Orbit.Client
 
                     if (!syncCollection.Exists(GetItemQuery(obj, category)))
                     {
-                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
+                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Created, category));
 
                         return true;
                     }
@@ -197,10 +197,11 @@ namespace EightBot.Orbit.Client
                     .Queue(
                         () =>
                         {
-                            if (ItemExistsAndAvailable(obj, category))
+                            var result = ItemExistsAndAvailable(obj, category);
+                            if (!result.IsDeleted && result.Exists)
                             {
                                 var syncCollection = GetSynchronizableTypeCollection<T>();
-                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
+                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Updated, category));
                                 return true;
                             }
 
@@ -217,14 +218,21 @@ namespace EightBot.Orbit.Client
                         () =>
                         {
                             var syncCollection = GetSynchronizableTypeCollection<T>();
-                            if (ItemExistsAndAvailable(obj, category))
+
+                            var result = ItemExistsAndAvailable(obj, category);
+
+                            if (!result.IsDeleted && result.Exists)
                             {
-                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
+                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Updated, category));
+                                return true;
+                            }
+                            else if(!result.IsDeleted)
+                            {
+                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Created, category));
+                                return true;
                             }
 
-                            syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
-
-                            return true;
+                            return false;
                         });
         }
 
@@ -236,10 +244,11 @@ namespace EightBot.Orbit.Client
                     .Queue(
                         () =>
                         {
-                            if (ItemExistsAndAvailable(obj, category))
+                            var result = ItemExistsAndAvailable(obj, category);
+                            if (!result.IsDeleted && result.Exists)
                             {
                                 var syncCollection = GetSynchronizableTypeCollection<T>();
-                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Delete, category));
+                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Deleted, category));
                                 return true;
                             }
 
@@ -382,7 +391,7 @@ namespace EightBot.Orbit.Client
                         .Find(GetItemQuery<T>(category))
                         ?.OrderByDescending(x => x.ModifiedTimestamp)
                         ?.GroupBy(x => x.TypeId)
-                        ?.Where(x => !x.Any(i => i.Operation == (int)ClientOperationType.Delete))
+                        ?.Where(x => !x.Any(i => i.Operation == (int)ClientOperationType.Deleted))
                         ?.Select(x => x.First().Value)
                         ?.ToList()
                         ?? Enumerable.Empty<T>();
@@ -635,14 +644,14 @@ namespace EightBot.Orbit.Client
                 });
         }
 
-        private bool ItemExistsAndAvailable<T>(T obj, string category = null)
+        private (bool IsDeleted, bool Exists) ItemExistsAndAvailable<T>(T obj, string category = null)
             where T : class
         {
             var id = GetId(obj);
             return ItemExistsAndAvailableWithId<T>(id, category);
         }
 
-        private bool ItemExistsAndAvailableWithId<T>(string id, string category = null)
+        private (bool IsDeleted, bool Exists) ItemExistsAndAvailableWithId<T>(string id, string category = null)
             where T : class
         {
             var syncCollection = GetSynchronizableTypeCollection<T>();
@@ -651,13 +660,12 @@ namespace EightBot.Orbit.Client
                 syncCollection
                     .Count(
                         Query.And(
-                            Query.EQ(SynchronizableOperationIndex, (int)ClientOperationType.Delete),
+                            Query.EQ(SynchronizableOperationIndex, (int)ClientOperationType.Deleted),
                             GetItemQueryWithId<T>(id, category)));
 
-            if (deleted > 0)
-                return false;
+            var count = syncCollection.Count(GetItemQueryWithId<T>(id, category));
 
-            return syncCollection.Count(GetItemQueryWithId<T>(id, category)) > 0;
+            return (deleted > 0, count > 0);
         }
 
         private Task<Synchronizable<T>> GetLatestSyncQueue<T>(string id, string category = null)

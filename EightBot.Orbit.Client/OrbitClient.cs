@@ -518,13 +518,7 @@ namespace EightBot.Orbit.Client
                                     x =>
                                     {
                                         var latest = x.First();
-
-                                        return new ClientSyncInfo<T>
-                                        {
-                                            ModifiedOn = latest.ModifiedTimestamp,
-                                            Operation = (ClientOperationType)latest.Operation,
-                                            Value = latest.Value
-                                        };
+                                        return GetAsClientSyncInfo<T>(latest);
                                     })
                                 ?.ToList()
                                 ?? Enumerable.Empty<ClientSyncInfo<T>>();

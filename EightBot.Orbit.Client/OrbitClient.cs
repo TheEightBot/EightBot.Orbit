@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -45,7 +45,7 @@ namespace EightBot.Orbit.Client
             _syncReconciler = syncReconciler ?? new SyncReconcilers.ServerWinsSyncReconciler();
         }
 
-        public OrbitClient Initialize(string cacheDirectory, string customCacheName = null, string additionalConnectionStringParameters = null)
+        public OrbitClient Initialize(string cacheDirectory, string customCacheName = null, string additionalConnectionStringParameters = null, bool deleteExistingCache = false)
         {
             lock(_scaffoldingLock)
             {
@@ -54,6 +54,11 @@ namespace EightBot.Orbit.Client
                     Initialized = true;
 
                     CachePath = Path.Combine(cacheDirectory, customCacheName ?? OrbitCacheDb);
+
+                    if(File.Exists(CachePath))
+                    {
+                        File.Delete(CachePath);
+                    }
 
                     _additionalConnectionStringParameters = additionalConnectionStringParameters;
 

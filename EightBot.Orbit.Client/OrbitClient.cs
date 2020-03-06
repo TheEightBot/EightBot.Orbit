@@ -490,13 +490,7 @@ namespace EightBot.Orbit.Client
 
                     return
                         cacheables
-                            ?.Select(x =>
-                                new ClientSyncInfo<T>
-                                {
-                                    ModifiedOn = x.ModifiedTimestamp,
-                                    Operation = (ClientOperationType)x.Operation,
-                                    Value = x.Value
-                                })
+                            ?.Select(x => GetAsClientSyncInfo(x))
                             ?.ToList()
                         ?? Enumerable.Empty<ClientSyncInfo<T>>();
                 });
@@ -521,7 +515,7 @@ namespace EightBot.Orbit.Client
                                     x =>
                                     {
                                         var latest = x.First();
-                                        return GetAsClientSyncInfo<T>(latest);
+                                        return GetAsClientSyncInfo(latest);
                                     })
                                 ?.ToList()
                                 ?? Enumerable.Empty<ClientSyncInfo<T>>();

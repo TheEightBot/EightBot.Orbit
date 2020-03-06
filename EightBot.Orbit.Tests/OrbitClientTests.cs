@@ -326,9 +326,35 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 168
                 };
 
-            await _client.Upsert(testFile1);
-            await _client.Upsert(testFile2);
-            await _client.Upsert(testFile3);
+            var upsert1 = await _client.Upsert(testFile1);
+
+            upsert1.Success
+                .Should()
+                .BeTrue();
+
+            upsert1.OperationResult
+                .Should()
+                .Be(ClientOperationType.Create);
+
+            var upsert2 = await _client.Upsert(testFile2);
+
+            upsert2.Success
+                .Should()
+                .BeTrue();
+
+            upsert2.OperationResult
+                .Should()
+                .Be(ClientOperationType.Update);
+
+            var upsert3 = await _client.Upsert(testFile3);
+
+            upsert3.Success
+                .Should()
+                .BeTrue();
+
+            upsert3.OperationResult
+                .Should()
+                .Be(ClientOperationType.Update);
 
             var found = await _client.GetLatest(testFile3);
 

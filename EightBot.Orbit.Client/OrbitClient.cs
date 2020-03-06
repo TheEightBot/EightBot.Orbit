@@ -171,25 +171,28 @@ namespace EightBot.Orbit.Client
             return this;
         }
 
-        public Task<bool> Create<T>(T obj, string category = null)
+        public Task<(bool Success, ClientOperationType OperationResult)> Create<T>(T obj, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () => {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
-
-                    if (!syncCollection.Exists(GetItemQuery(obj, category)))
+            return _processingQueue
+                .Queue(
+                    () =>
                     {
-                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
+                        var result = ItemExistsAndAvailable(obj, category);
 
-                        return true;
-                    }
+                        if (!result.IsDeleted && !result.Exists)
+                        {
+                            var syncCollection = GetSynchronizableTypeCollection<T>();
+                            syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
 
-                    return false;
-                });
+                            return (true, ClientOperationType.Create);
+                        }
+
+                        return (false, ClientOperationType.NoOperation);
+                    });
         }
 
-        public Task<bool> Update<T>(T obj, string category = null)
+        public Task<(bool Success, ClientOperationType OperationResult)> Update<T>(T obj, string category = null)
             where T : class
         {
             return 
@@ -202,14 +205,14 @@ namespace EightBot.Orbit.Client
                             {
                                 var syncCollection = GetSynchronizableTypeCollection<T>();
                                 syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
-                                return true;
+                                return (true, ClientOperationType.Update);
                             }
 
-                            return false;
+                            return (false, ClientOperationType.NoOperation);
                         });
         }
 
-        public Task<bool> Upsert<T>(T obj, string category = null)
+        public Task<(bool Success, ClientOperationType OperationResult)> Upsert<T>(T obj, string category = null)
             where T : class
         {
             return
@@ -224,19 +227,19 @@ namespace EightBot.Orbit.Client
                             if (!result.IsDeleted && result.Exists)
                             {
                                 syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
-                                return true;
+                                return (true, ClientOperationType.Update);
                             }
                             else if(!result.IsDeleted)
                             {
                                 syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
-                                return true;
+                                return (true, ClientOperationType.Create);
                             }
 
-                            return false;
+                            return (false, ClientOperationType.NoOperation);
                         });
         }
 
-        public Task<bool> Delete<T>(T obj, string category = null)
+        public Task<(bool Success, ClientOperationType OperationResult)> Delete<T>(T obj, string category = null)
             where T : class
         {
             return
@@ -249,10 +252,10 @@ namespace EightBot.Orbit.Client
                             {
                                 var syncCollection = GetSynchronizableTypeCollection<T>();
                                 syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Delete, category));
-                                return true;
+                                return (true, ClientOperationType.Delete);
                             }
 
-                            return false;
+                            return (false, ClientOperationType.NoOperation);
                         });
         }
 
@@ -563,7 +566,7 @@ namespace EightBot.Orbit.Client
             if (!(await TerminateSyncQueueHistory(obj, category).ConfigureAwait(false)))
                 return false;
 
-            return await Create(obj, category).ConfigureAwait(false);
+            return (await Create(obj, category).ConfigureAwait(false)).Success;
         }
 
         public Task<bool> TerminateSyncQueueHistory<T>(T obj, string category = null)
@@ -658,6 +661,12 @@ namespace EightBot.Orbit.Client
                             GetItemQueryWithId<T>(id, category)));
 
             var count = syncCollection.Count(GetItemQueryWithId<T>(id, category));
+
+            if(count == 0)
+            {
+                var typeItems = GetTypeCollection<T>(category);
+                count = typeItems.FindById(id) != default(T) ? 1 : 0;
+            }
 
             return (deleted > 0, count > 0);
         }

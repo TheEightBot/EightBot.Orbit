@@ -7,6 +7,7 @@ using System;
 using Bogus.Extensions;
 using System.Threading.Tasks;
 using FluentAssertions;
+using System.ServiceModel.Dispatcher;
 
 namespace EightBot.Orbit.Tests
 {
@@ -65,7 +66,14 @@ namespace EightBot.Orbit.Tests
                 };
 
             var result = await _client.Create(testFile);
-            Assert.IsTrue(result);
+
+            result.Success
+                .Should()
+                .BeTrue();
+
+            result.OperationResult
+                .Should()
+                .Be(ClientOperationType.Create);
         }
 
         [TestMethod]
@@ -79,7 +87,14 @@ namespace EightBot.Orbit.Tests
                 };
 
             var result = await _client.Create(testFile);
-            Assert.IsTrue(result);
+
+            result.Success
+                .Should()
+                .BeTrue();
+
+            result.OperationResult
+                .Should()
+                .Be(ClientOperationType.Create);
         }
 
         [TestMethod]
@@ -93,7 +108,14 @@ namespace EightBot.Orbit.Tests
                 };
 
             var result = await _client.Create(testFile, "category");
-            Assert.IsTrue(result);
+
+            result.Success
+                .Should()
+                .BeTrue();
+
+            result.OperationResult
+                .Should()
+                .Be(ClientOperationType.Create);
         }
 
         [TestMethod]
@@ -102,7 +124,14 @@ namespace EightBot.Orbit.Tests
             var str = "Testing";
 
             var result = await _client.Create(str);
-            Assert.IsTrue(result);
+
+            result.Success
+                .Should()
+                .BeTrue();
+
+            result.OperationResult
+                .Should()
+                .Be(ClientOperationType.Create);
         }
 
         [TestMethod]
@@ -116,7 +145,14 @@ namespace EightBot.Orbit.Tests
                 };
 
             var result = await _client.Create(testFile);
-            Assert.IsTrue(result);
+
+            result.Success
+                .Should()
+                .BeTrue();
+
+            result.OperationResult
+                .Should()
+                .Be(ClientOperationType.Create);
         }
 
         [TestMethod]
@@ -130,7 +166,14 @@ namespace EightBot.Orbit.Tests
                 };
 
             var result = await _client.Create(testFile, "category");
-            Assert.IsTrue(result);
+
+            result.Success
+                .Should()
+                .BeTrue();
+
+            result.OperationResult
+                .Should()
+                .Be(ClientOperationType.Create);
         }
 
         [TestMethod]
@@ -330,8 +373,6 @@ namespace EightBot.Orbit.Tests
         [TestMethod]
         public async Task OrbitClient_InsertAndDeleteAndInsert_ShouldNotInsert()
         {
-            var expectedResult = false;
-
             var testFile1 =
                 new TestClassA
                 {
@@ -353,18 +394,40 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 168
                 };
 
-            await _client.Upsert(testFile1);
-            await _client.Delete(testFile2);
-            var upsertResult = await _client.Upsert(testFile3);
+            var upsert1Result = await _client.Upsert(testFile1);
 
-            Assert.IsTrue(expectedResult == upsertResult);
+            upsert1Result.Success
+                .Should()
+                .BeTrue();
+
+            upsert1Result.OperationResult
+                .Should()
+                .Be(ClientOperationType.Create);
+
+            var deleteResult = await _client.Delete(testFile2);
+
+            deleteResult.Success
+                .Should()
+                .BeTrue();
+
+            deleteResult.OperationResult
+                .Should()
+                .Be(ClientOperationType.Delete);
+
+            var upsert2Result = await _client.Upsert(testFile3);
+
+            upsert2Result.Success
+                .Should()
+                .BeFalse();
+
+            upsert2Result.OperationResult
+                .Should()
+                .Be(ClientOperationType.NoOperation);
         }
 
         [TestMethod]
         public async Task OrbitClient_InsertAndDeleteAndInsertWithCategory_ShouldNotInsert()
         {
-            var expectedResult = false;
-
             var category = "category";
 
             var testFile1 =
@@ -388,11 +451,35 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 168
                 };
 
-            await _client.Upsert(testFile1, category);
-            await _client.Delete(testFile2, category);
-            var upsertResult = await _client.Upsert(testFile3, category);
+            var upsert1Result = await _client.Upsert(testFile1, category);
 
-            Assert.IsTrue(expectedResult == upsertResult);
+            upsert1Result.Success
+                .Should()
+                .BeTrue();
+
+            upsert1Result.OperationResult
+                .Should()
+                .Be(ClientOperationType.Create);
+
+            var deleteResult =await _client.Delete(testFile2, category);
+
+            deleteResult.Success
+                .Should()
+                .BeTrue();
+
+            deleteResult.OperationResult
+                .Should()
+                .Be(ClientOperationType.Delete);
+
+            var upsert2Result = await _client.Upsert(testFile3, category);
+
+            upsert2Result.Success
+                .Should()
+                .BeFalse();
+
+            upsert2Result.OperationResult
+                .Should()
+                .Be(ClientOperationType.NoOperation);
         }
 
         [TestMethod]
@@ -561,7 +648,13 @@ namespace EightBot.Orbit.Tests
 
             var upsertResult = await _client.Upsert(foundObject);
 
-            Assert.IsTrue(upsertResult);
+            upsertResult.Success
+                .Should()
+                .BeTrue();
+
+            upsertResult.OperationResult
+                .Should()
+                .Be(ClientOperationType.Update);
 
             var latest = await _client.GetAllLatest<TestClassA>();
 
@@ -597,7 +690,13 @@ namespace EightBot.Orbit.Tests
 
             var upsertResult = await _client.Upsert(foundObject, category);
 
-            Assert.IsTrue(upsertResult);
+            upsertResult.Success
+                .Should()
+                .BeTrue();
+
+            upsertResult.OperationResult
+                .Should()
+                .Be(ClientOperationType.Update);
 
             var latest = await _client.GetAllLatest<TestClassA>(category);
 

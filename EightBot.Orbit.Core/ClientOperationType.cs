@@ -6,5 +6,6 @@ namespace EightBot.Orbit
         Create,
         Update,
         Delete,
+        NoOperation = 99999
     }
 }

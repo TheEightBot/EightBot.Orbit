@@ -55,7 +55,7 @@ namespace EightBot.Orbit.Client
 
                     CachePath = Path.Combine(cacheDirectory, customCacheName ?? OrbitCacheDb);
 
-                    if(File.Exists(CachePath))
+                    if(deleteExistingCache && File.Exists(CachePath))
                     {
                         File.Delete(CachePath);
                     }
@@ -472,7 +472,7 @@ namespace EightBot.Orbit.Client
                     .ConfigureAwait(false);
         }
 
-        public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(string id, string category = null)
+        public Task<IEnumerable<ClientSyncInfo<T>>>  GetSyncHistory<T>(string id, string category = null)
             where T : class
         {
             return _processingQueue.Queue(
@@ -774,14 +774,14 @@ namespace EightBot.Orbit.Client
         {
             foreach (var serverSyncInfo in serverSyncInformation)
             {
-                var clientInfo = await GetLatestSyncQueue<T>(GetId(serverSyncInfo.Value), category).ConfigureAwait(false);
+                var clientInfo = await GetSyncHistory<T>(GetId(serverSyncInfo.Value), category).ConfigureAwait(false);
+                var latestClientUpdate = clientInfo?.FirstOrDefault();
 
-                if(clientInfo != null)
+                if(latestClientUpdate != null)
                 {
-                    var csi = GetAsClientSyncInfo(clientInfo);
-                    var result = _syncReconciler.Reconcile(serverSyncInfo, csi);
+                    var result = _syncReconciler.Reconcile(serverSyncInfo, latestClientUpdate);
 
-                    await TerminateSyncQueueHistory(clientInfo.Value, category).ConfigureAwait(false);
+                    await TerminateSyncQueueHistory(latestClientUpdate, category).ConfigureAwait(false);
                     await UpsertCacheItem(result, category).ConfigureAwait(false);
                     continue;
                 }

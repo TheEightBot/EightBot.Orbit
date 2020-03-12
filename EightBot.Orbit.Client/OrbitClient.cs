@@ -571,6 +571,8 @@ namespace EightBot.Orbit.Client
                 {
                     var syncCollection = GetSynchronizableTypeCollection<T>();
 
+
+
                     return syncCollection.Delete(GetItemQuery(obj, category)) > 0;
                 });
         }
@@ -781,7 +783,7 @@ namespace EightBot.Orbit.Client
                 {
                     var result = _syncReconciler.Reconcile(serverSyncInfo, latestClientUpdate);
 
-                    await TerminateSyncQueueHistory(latestClientUpdate, category).ConfigureAwait(false);
+                    await TerminateSyncQueueHistory(latestClientUpdate.Value, category).ConfigureAwait(false);
                     await UpsertCacheItem(result, category).ConfigureAwait(false);
                     continue;
                 }

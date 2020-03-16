@@ -719,7 +719,9 @@ namespace EightBot.Orbit.Client
             var typeId = rti.GetId(obj);
 
             if (typeId == null || typeId == BsonValue.Null)
+            {
                 throw new Exception("All cachable objects need to have a non-null value for the Id");
+            }
 
             var now = DateTimeOffset.Now;
 

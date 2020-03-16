@@ -14,7 +14,7 @@ namespace EightBot.Orbit.Client
 
         public long? SyncTimestamp { get; set; }
 
-        public string TypeId { get; set; }
+        public BsonValue TypeId { get; set; }
 
         public T Value { get; set; }
 

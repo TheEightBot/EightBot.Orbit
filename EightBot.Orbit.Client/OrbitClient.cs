@@ -484,7 +484,20 @@ namespace EightBot.Orbit.Client
                     .ConfigureAwait(false);
         }
 
-        public Task<IEnumerable<ClientSyncInfo<T>>>  GetSyncHistory<T>(string id, string category = null)
+        public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(string id, string category = null)
+            where T : class
+        {
+            return GetSyncHistoryInternal<T>(new BsonValue(id), category);
+        }
+
+        public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(T obj, string category = null)
+            where T : class
+        {
+            var id = GetId(obj);
+            return GetSyncHistoryInternal<T>(id, category);
+        }
+
+        private Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistoryInternal<T>(BsonValue id, string category = null)
             where T : class
         {
             return _processingQueue.Queue(
@@ -656,7 +669,7 @@ namespace EightBot.Orbit.Client
             return ItemExistsAndAvailableWithId<T>(id, category);
         }
 
-        private (bool IsDeleted, bool Exists) ItemExistsAndAvailableWithId<T>(string id, string category = null)
+        private (bool IsDeleted, bool Exists) ItemExistsAndAvailableWithId<T>(BsonValue id, string category = null)
             where T : class
         {
             var syncCollection = GetSynchronizableTypeCollection<T>();
@@ -679,7 +692,7 @@ namespace EightBot.Orbit.Client
             return (deleted > 0, count > 0);
         }
 
-        private Task<Synchronizable<T>> GetLatestSyncQueue<T>(string id, string category = null)
+        private Task<Synchronizable<T>> GetLatestSyncQueue<T>(BsonValue id, string category = null)
             where T : class
         {
             return _processingQueue.Queue(
@@ -831,7 +844,10 @@ namespace EightBot.Orbit.Client
 
             if (!_db.CollectionExists(ctn))
             {
-                var collection = _db.GetCollection<T>(ctn);
+                var collection =
+                    !string.IsNullOrEmpty(ctn)
+                        ? _db.GetCollection<T>(ctn)
+                        : _db.GetCollection<T>();
 
                 if(!string.IsNullOrEmpty(rti.IdProperty))
                 {

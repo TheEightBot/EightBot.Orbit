@@ -1,6 +1,7 @@
 using System;
 using System.Linq.Expressions;
 using System.Reflection;
+using LiteDB;
 
 namespace EightBot.Orbit.Client
 {
@@ -38,7 +39,7 @@ namespace EightBot.Orbit.Client
             return rti;
         }
 
-        public static RegisteredTypeInformation Create<T, TId>(Expression<Func<T, TId>> idSelector, bool requiresIdMapping = false, string typeNameOverride = null)
+        public static RegisteredTypeInformation Create<T, TId>(Expression<Func<T, TId>> idSelector, string typeNameOverride = null)
         {
             if (idSelector.Body is MemberExpression mex && mex.Member is PropertyInfo pi)
             {
@@ -61,7 +62,7 @@ namespace EightBot.Orbit.Client
             throw new ArgumentException($"The expression provided is not a property selector for {typeof(T).Name}", nameof(idSelector));
         }
 
-        public static RegisteredTypeInformation Create<T, TId>(Expression<Func<T, string>> idSelector, Expression<Func<T, TId>> idProperty, string typeNameOverride = null)
+        public static RegisteredTypeInformation Create<T, TIdSelectorType, TIdPropertyType>(Expression<Func<T, TIdSelectorType>> idSelector, Expression<Func<T, TIdPropertyType>> idProperty, string typeNameOverride = null)
         {
             if (idSelector is LambdaExpression lex && idProperty.Body is MemberExpression mex && mex.Member is PropertyInfo pi)
             {
@@ -85,15 +86,16 @@ namespace EightBot.Orbit.Client
             throw new ArgumentException($"The expression provided is not a lambda expression for {typeof(T).Name}", nameof(idSelector));
         }
 
-        public string GetId<T>(T value)
+        public BsonValue GetId<T>(T value)
         {
             if (PropertyIdSelector != null)
-                return PropertyIdSelector.GetValue(value).ToString();
+                return new BsonValue(PropertyIdSelector.GetValue(value));
 
             return
-                FuncIdSelector != null
-                    ? ((Func<T, string>)FuncIdSelector)(value)
-                    : value.ToString();
+                new BsonValue(
+                    FuncIdSelector != null
+                        ? ((Func<T, object>)FuncIdSelector)(value)
+                        : value);
         }
 
         public string GetCategoryTypeName(string category = null)

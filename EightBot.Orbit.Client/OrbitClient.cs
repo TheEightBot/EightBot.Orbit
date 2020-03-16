@@ -124,7 +124,7 @@ namespace EightBot.Orbit.Client
             return this;
         }
 
-        public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, TId>> idSelector, Func<T, Task> additionalProcessing = null, bool requiresIdMapping = false, string typeNameOverride = null)
+        public OrbitClient AddTypeRegistration<T, TIdSelectorType>(Expression<Func<T, TIdSelectorType>> idSelector, Func<T, Task> additionalProcessing = null, bool requiresIdMapping = false, string typeNameOverride = null)
             where T : class
         {
             lock(_scaffoldingLock)
@@ -132,7 +132,7 @@ namespace EightBot.Orbit.Client
                 if (!Initialized)
                     throw new ClientNotInitializedException($"{nameof(Initialize)} must be called before you can add type registrations.");
 
-                var rti = RegisteredTypeInformation.Create(idSelector, requiresIdMapping, typeNameOverride);
+                var rti = RegisteredTypeInformation.Create(idSelector, typeNameOverride);
 
                 _registeredTypes[rti.ObjectType] = rti;
 
@@ -148,7 +148,7 @@ namespace EightBot.Orbit.Client
             return this;
         }
 
-        public OrbitClient AddTypeRegistration<T, TId>(Expression<Func<T, string>> idSelector, Expression<Func<T, TId>> idProperty, bool requiresIdMapping = false, string typeNameOverride = null)
+        public OrbitClient AddTypeRegistration<T, TIdSelectorType, TIdPropertyType>(Expression<Func<T, TIdSelectorType>> idSelector, Expression<Func<T, TIdPropertyType>> idProperty, bool requiresIdMapping = false, string typeNameOverride = null)
             where T : class
         {
             lock(_scaffoldingLock)
@@ -332,7 +332,7 @@ namespace EightBot.Orbit.Client
                         x =>
                         {
                             var itemId = rti.GetId(x);
-                            return itemId.Equals(id, StringComparison.Ordinal);
+                            return itemId == id;
                         });
 
                 if (index >= 0)
@@ -355,10 +355,22 @@ namespace EightBot.Orbit.Client
 
             var id = rti.GetId(obj);
 
-            return GetLatest<T>(id, category);
+            return GetLatestInternal<T>(id, category);
         }
 
         public Task<T> GetLatest<T>(string id, string category = null)
+            where T : class
+        {
+            return GetLatestInternal<T>(new BsonValue(id), category);
+        }
+
+        public Task<T> GetLatest<T, TId>(TId id, string category = null)
+            where T : class
+        {
+            return GetLatestInternal<T>(new BsonValue(id), category);
+        }
+
+        private Task<T> GetLatestInternal<T>(BsonValue id, string category = null)
             where T : class
         {
             return _processingQueue.Queue(
@@ -747,7 +759,7 @@ namespace EightBot.Orbit.Client
                             : Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>());
         }
 
-        private Query GetItemQueryWithId<T>(string id, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
+        private Query GetItemQueryWithId<T>(BsonValue id, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
             where T : class
         {
             return

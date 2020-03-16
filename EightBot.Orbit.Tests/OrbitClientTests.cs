@@ -8,6 +8,8 @@ using Bogus.Extensions;
 using System.Threading.Tasks;
 using FluentAssertions;
 using System.ServiceModel.Dispatcher;
+using System.Collections;
+using System.Collections.Generic;
 
 namespace EightBot.Orbit.Tests
 {
@@ -34,7 +36,8 @@ namespace EightBot.Orbit.Tests
                     .AddTypeRegistration<TestClassA, string>(x => x.StringProperty, requiresIdMapping: true)
                     .AddTypeRegistration<TestClassB, string>(x => x.StringProperty, requiresIdMapping: true)
                     .AddTypeRegistration<TestClassC, int>(x => x.IntProperty, requiresIdMapping: true)
-                    .AddTypeRegistration<TestClassD, float>(x => x.FloatProperty.ToString(), x => x.FloatProperty, requiresIdMapping: true)
+                    .AddTypeRegistration<TestClassD, string, float>(x => x.FloatProperty.ToString(), x => x.FloatProperty, requiresIdMapping: true)
+                    .AddTypeRegistration<TestClassE, Guid>(x => x.TestClassId, requiresIdMapping: true)
                     .AddTypeRegistration<string>();
         }
 
@@ -189,6 +192,70 @@ namespace EightBot.Orbit.Tests
             await _client.Create(testFile);
             var found = await _client.GetLatest(testFile);
             Assert.IsTrue(testFile.IntProperty == found.IntProperty);
+        }
+
+        [TestMethod]
+        public async Task OrbitClient_InsertToCacheAndGetLatest_ShouldFindMatch()
+        {
+            var testFile =
+                new TestClassA
+                {
+                    StringProperty = "Test Value",
+                    IntProperty = 42
+                };
+
+            await _client.UpsertCacheItem(testFile);
+            var found = await _client.GetLatest(testFile);
+            Assert.IsTrue(testFile.IntProperty == found.IntProperty);
+        }
+
+        [TestMethod]
+        public async Task OrbitClient_InsertToCacheWithCategoryAndGetLatest_ShouldFindMatch()
+        {
+            var category = "category";
+
+            var testFile =
+                new TestClassA
+                {
+                    StringProperty = "Test Value",
+                    IntProperty = 42
+                };
+
+            await _client.UpsertCacheItem(testFile, category);
+            var found = await _client.GetLatest(testFile, category);
+            Assert.IsTrue(testFile.IntProperty == found.IntProperty);
+        }
+
+        [TestMethod]
+        public async Task OrbitClient_InsertTestClassEToCacheAndGetLatest_ShouldFindMatch()
+        {
+            var testFile =
+                new TestClassE
+                {
+                    TestClassId = Guid.NewGuid(),
+                    Values = new List<TestClassD> { },
+                };
+
+            await _client.UpsertCacheItem(testFile);
+            var found = await _client.GetLatest(testFile);
+            Assert.IsTrue(testFile.TestClassId == found.TestClassId);
+        }
+
+        [TestMethod]
+        public async Task OrbitClient_InsertTestClassEToCacheWithCategoryAndGetLatest_ShouldFindMatch()
+        {
+            var category = "category";
+
+            var testFile =
+                new TestClassE
+                {
+                    TestClassId = Guid.NewGuid(),
+                    Values = new List<TestClassD> { },
+                };
+
+            await _client.UpsertCacheItem(testFile, category);
+            var found = await _client.GetLatest(testFile, category);
+            Assert.IsTrue(testFile.TestClassId == found.TestClassId);
         }
 
         [TestMethod]
@@ -871,6 +938,13 @@ namespace EightBot.Orbit.Tests
             public float FloatProperty { get; set; }
 
             public double DoubleProperty { get; set; }
+        }
+
+        class TestClassE
+        {
+            public Guid TestClassId { get; set; }
+
+            public IEnumerable<TestClassD> Values { get; set; }
         }
     }
 }

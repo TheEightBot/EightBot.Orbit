@@ -358,12 +358,6 @@ namespace EightBot.Orbit.Client
             return GetLatestInternal<T>(id, category);
         }
 
-        public Task<T> GetLatest<T>(string id, string category = null)
-            where T : class
-        {
-            return GetLatestInternal<T>(new BsonValue(id), category);
-        }
-
         public Task<T> GetLatest<T, TId>(TId id, string category = null)
             where T : class
         {
@@ -482,12 +476,6 @@ namespace EightBot.Orbit.Client
                             return typeCollection.Upsert(item);
                         })
                     .ConfigureAwait(false);
-        }
-
-        public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(string id, string category = null)
-            where T : class
-        {
-            return GetSyncHistoryInternal<T>(new BsonValue(id), category);
         }
 
         public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(T obj, string category = null)
@@ -803,7 +791,7 @@ namespace EightBot.Orbit.Client
         {
             foreach (var serverSyncInfo in serverSyncInformation)
             {
-                var clientInfo = await GetSyncHistory<T>(GetId(serverSyncInfo.Value), category).ConfigureAwait(false);
+                var clientInfo = await GetSyncHistory(serverSyncInfo.Value, category).ConfigureAwait(false);
                 var latestClientUpdate = clientInfo?.FirstOrDefault();
 
                 if(latestClientUpdate != null)

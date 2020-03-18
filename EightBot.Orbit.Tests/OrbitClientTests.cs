@@ -338,7 +338,7 @@ namespace EightBot.Orbit.Tests
 
             await _client.Create(testFile1);
             await _client.Update(testFile2);
-            var found = await _client.GetSyncHistory<TestClassA>(testFile1.StringProperty);
+            var found = await _client.GetSyncHistory<TestClassA>(testFile1);
             Assert.IsTrue(found.Count() == expected);
         }
 
@@ -365,7 +365,7 @@ namespace EightBot.Orbit.Tests
 
             await _client.Create(testFile1, category);
             await _client.Update(testFile2, category);
-            var found = await _client.GetSyncHistory<TestClassA>(testFile1.StringProperty, category);
+            var found = await _client.GetSyncHistory<TestClassA>(testFile1, category);
             Assert.IsTrue(found.Count() == expected);
         }
 
@@ -597,8 +597,8 @@ namespace EightBot.Orbit.Tests
             await _client.Upsert(testFile1);
             await _client.Upsert(testFile2);
 
-            var foundA = await _client.GetLatest<TestClassA>(id);
-            var foundB = await _client.GetLatest<TestClassB>(id);
+            var foundA = await _client.GetLatest<TestClassA, string>(id);
+            var foundB = await _client.GetLatest<TestClassB, string>(id);
 
             Assert.IsTrue(foundA.IntProperty == testFile1.IntProperty);
             Assert.IsTrue(foundB.DoubleProperty == testFile2.DoubleProperty);
@@ -628,8 +628,8 @@ namespace EightBot.Orbit.Tests
             await _client.Upsert(testFile1, category);
             await _client.Upsert(testFile2, category);
 
-            var foundA = await _client.GetLatest<TestClassA>(id, category);
-            var foundB = await _client.GetLatest<TestClassB>(id, category);
+            var foundA = await _client.GetLatest<TestClassA, string> (id, category);
+            var foundB = await _client.GetLatest<TestClassB, string>(id, category);
 
             Assert.IsTrue(foundA.IntProperty == testFile1.IntProperty);
             Assert.IsTrue(foundB.DoubleProperty == testFile2.DoubleProperty);
@@ -700,8 +700,8 @@ namespace EightBot.Orbit.Tests
 
                 await Task.WhenAll(insert1Test, insert2Test);
 
-                var found1 = await _client.GetLatest<TestClassA>(id1);
-                var found2 = await _client.GetLatest<TestClassA>(id2);
+                var found1 = await _client.GetLatest<TestClassA, string>(id1);
+                var found2 = await _client.GetLatest<TestClassA, string>(id2);
 
                 Assert.IsNotNull(found1);
                 Assert.IsTrue(found1.IntProperty == max);
@@ -733,7 +733,7 @@ namespace EightBot.Orbit.Tests
 
             var original = generatedTestObjects[49];
 
-            var foundObject = await _client.GetLatest<TestClassA>(original.StringProperty);
+            var foundObject = await _client.GetLatest<TestClassA>(original);
 
             Assert.AreEqual(foundObject.IntProperty, original.IntProperty);
 
@@ -775,7 +775,7 @@ namespace EightBot.Orbit.Tests
 
             var original = generatedTestObjects[49];
 
-            var foundObject = await _client.GetLatest<TestClassA>(original.StringProperty, category);
+            var foundObject = await _client.GetLatest<TestClassA>(original, category);
 
             Assert.AreEqual(foundObject.IntProperty, original.IntProperty);
 
@@ -821,14 +821,14 @@ namespace EightBot.Orbit.Tests
             await _client.Upsert(testFile1, category1);
             await _client.Upsert(testFile2, category2);
 
-            var testFile1InCategory2 = await _client.GetLatest<TestClassA>(testFile1.StringProperty, category2);
-            var testFile2InCategory1 = await _client.GetLatest<TestClassA>(testFile2.StringProperty, category1);
+            var testFile1InCategory2 = await _client.GetLatest<TestClassA>(testFile1, category2);
+            var testFile2InCategory1 = await _client.GetLatest<TestClassA>(testFile2, category1);
 
             Assert.IsNull(testFile1InCategory2);
             Assert.IsNull(testFile2InCategory1);
 
-            var testFile1InCategory1 = await _client.GetLatest<TestClassA>(testFile1.StringProperty, category1);
-            var testFile2InCategory2 = await _client.GetLatest<TestClassA>(testFile2.StringProperty, category2);
+            var testFile1InCategory1 = await _client.GetLatest<TestClassA>(testFile1, category1);
+            var testFile2InCategory2 = await _client.GetLatest<TestClassA>(testFile2, category2);
 
             Assert.IsNotNull(testFile1InCategory1);
             Assert.IsNotNull(testFile2InCategory2);

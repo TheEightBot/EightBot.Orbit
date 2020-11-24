@@ -10,6 +10,7 @@ using FluentAssertions;
 using System.ServiceModel.Dispatcher;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace EightBot.Orbit.Tests
 {
@@ -657,6 +658,38 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        public async Task OrbitClient_GetAllLatest_PerfTest1 ()
+        {
+
+            var category = "test";
+
+            var items =
+                Enumerable
+                    .Range(1, 2000)
+                    .Select(id =>
+                        new ServerSyncInfo<TestClassA>
+                        {
+                            Value =
+                                new TestClassA
+                                {
+                                    StringProperty = $"id_{id}",
+                                    IntProperty = id
+                                }
+                        })
+                    .ToList();
+
+            await _client.Reconcile(items, category);
+
+            var sw = Stopwatch.StartNew();
+            var foundA = await _client.GetAllLatestSyncQueue<TestClassA>(category);
+            sw.Stop();
+
+            System.Diagnostics.Debug.WriteLine($"GetAllLatest: {sw.ElapsedMilliseconds}ms");
+
+            foundA.Should().NotBeEmpty();
+        }
+
+        [TestMethod]
         public async Task OrbitClient_InsertConcurrent_ShouldNotFail()
         {
             try
@@ -960,9 +993,11 @@ namespace EightBot.Orbit.Tests
                 Assert.IsTrue(found != default);
             }
 
-            Assert.IsTrue(!(await _client.GetAllLatestSyncQueue<TestClassA>(category)).Any());
+            var syncQueue = await _client.GetAllLatestSyncQueue<TestClassA>(category);
+            Assert.IsTrue(!syncQueue.Any());
 
-            Assert.IsTrue((await _client.GetAllLatest<TestClassA>(category)).Count() == 100);
+            var allLatest = await _client.GetAllLatest<TestClassA>(category);
+            Assert.IsTrue(allLatest.Count() == 100);
         }
 
         class TestClassA

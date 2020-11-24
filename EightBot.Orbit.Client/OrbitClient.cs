@@ -303,21 +303,25 @@ namespace EightBot.Orbit.Client
                 : typeCollectionNames;
         }
 
+        public Task<List<T>> GetAllOf<T> (string category = null)
+            where T : class
+        {
+            return _processingQueue
+                .Queue(
+                    () =>
+                    {
+                        var typeCollection = GetTypeCollection<T>(category);
+
+                        return typeCollection.FindAll().ToList();
+                    });
+        }
+
         public async Task<IEnumerable<T>> GetAllLatest<T>(string category = null)
             where T : class
         {
-            var allOfType =
-                await _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var typeCollection = GetTypeCollection<T>(category);
+            var allOfType = await GetAllOf<T>(category).ConfigureAwait(false);
 
-                            return typeCollection.FindAll().ToList();
-                        })
-                    .ConfigureAwait(false);
-
-            var latestSyncables = (await GetAllLatestSyncQueue<T>(category).ConfigureAwait(false)).ToList();
+            var latestSyncables = await GetAllLatestSyncQueue<T>(category).ConfigureAwait(false);
 
             var rti = _registeredTypes[typeof(T)];
 
@@ -388,7 +392,7 @@ namespace EightBot.Orbit.Client
                 });
         }
 
-        public Task<IEnumerable<T>> GetAllLatestSyncQueue<T>(string category = null)
+        public Task<List<T>> GetAllLatestSyncQueue<T>(string category = null)
             where T: class
         {
             return _processingQueue.Queue(
@@ -398,12 +402,13 @@ namespace EightBot.Orbit.Client
 
                     return syncCollection
                         .Find(GetItemQuery<T>(category))
+                        ?.ToList()
                         ?.OrderByDescending(x => x.ModifiedTimestamp)
                         ?.GroupBy(x => x.TypeId)
                         ?.Where(x => !x.Any(i => i.Operation == (int)ClientOperationType.Delete))
                         ?.Select(x => x.First().Value)
                         ?.ToList()
-                        ?? Enumerable.Empty<T>();
+                        ?? new List<T>();
                 });
         }
 
@@ -779,19 +784,22 @@ namespace EightBot.Orbit.Client
             where T : class
         {
             return
-                categorySearch == CategorySearch.StartsWith
-                    ? Query.And(
-                        Query.StartsWith(SynchronizableCategory, category),
-                        Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
-                    : categorySearch == CategorySearch.Contains
+                categorySearch ==
+                    CategorySearch.StartsWith
                         ? Query.And(
-                            Query.Contains(SynchronizableCategory, category),
+                            Query.StartsWith(SynchronizableCategory, category),
                             Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
-                        : category != null
+                        : categorySearch == CategorySearch.Contains
                             ? Query.And(
-                                Query.EQ(SynchronizableCategory, category),
+                                Query.Contains(SynchronizableCategory, category),
                                 Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
-                            : Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>());
+                            : category != null
+                                ? Query.And(
+                                    Query.EQ(SynchronizableCategory, category),
+                                    Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
+                                : Query.And(
+                                    Query.EQ(SynchronizableCategory, BsonValue.Null),
+                                    Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()));
         }
 
         private Query GetItemQueryWithId<T>(BsonValue id, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)

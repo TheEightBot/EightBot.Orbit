@@ -640,6 +640,8 @@ namespace EightBot.Orbit.Tests
         {
             var id = "Test Value";
 
+            var category = "test";
+
             var testFile1 =
                 new TestClassA
                 {
@@ -647,9 +649,9 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 42
                 };
 
-            await _client.Upsert(testFile1);
+            await _client.Upsert(testFile1, category);
 
-            var foundA = await _client.GetAllLatestSyncQueue<TestClassA>(id);
+            var foundA = await _client.GetAllLatestSyncQueue<TestClassA>();
 
             foundA.Should().BeEmpty();
         }
@@ -898,17 +900,69 @@ namespace EightBot.Orbit.Tests
             Assert.IsTrue(categories.Count == expectedCategories);
         }
 
+        //[TestMethod]
+        //public async Task OrbitClient_PopulateCacheWithSimpleItems_ShouldPopulate()
+        //{
+        //    var category1 = "category1";
+        //    var category2 = "category2";
+
+        //    await _client.PopulateCache(new[] { category1, category2 });
+
+        //    var latest = await _client.GetAllLatest<string>();
+
+        //    Assert.IsTrue(latest.Count() == 2);
+        //}
+
         [TestMethod]
-        public async Task OrbitClient_PopulateCacheWithSimpleItems_ShouldPopulate()
+        public async Task OrbitClient_Reconcile_ShouldGetServerValue ()
         {
-            var category1 = "category1";
-            var category2 = "category2";
+            var index = 1;
 
-            await _client.PopulateCache(new[] { category1, category2 });
+            var testObjects =
+                new Faker<TestClassA>()
+                    .RuleFor(x => x.StringProperty, (f, u) => $"String_{index++}")
+                    .RuleFor(x => x.IntProperty, (f, u) => index++)
+                    .RuleFor(x => x.TimestampMillis, (f, u) => DateTimeOffset.Now.ToUnixTimeMilliseconds());
 
-            var latest = await _client.GetAllLatest<string>();
+            var category = "category";
 
-            Assert.IsTrue(latest.Count() == 2);
+            var generatedTestObjects = testObjects.GenerateBetween(100, 100);
+
+            var populated = await _client.PopulateCache(generatedTestObjects, category);
+
+            for (int i = 0; i < 50; i++)
+            {
+                await _client.Upsert(generatedTestObjects[i], category);
+            }
+
+            Assert.IsTrue(populated);
+
+            index = 1;
+
+            var generatedTestServerObjects =
+                testObjects
+                    .GenerateBetween(100, 100)
+                    .Select(x =>
+                        new ServerSyncInfo<TestClassA>
+                        {
+                            Value = x,
+                            Operation = ServerOperationType.Updated,
+                        })
+                    .ToList();
+
+            await _client.Reconcile(generatedTestServerObjects, category);
+
+            var latest = await _client.GetAllLatest<TestClassA>(category);
+
+            foreach (var obj in generatedTestServerObjects)
+            {
+                var found = latest.FirstOrDefault(x => x.StringProperty == obj.Value.StringProperty && x.IntProperty == obj.Value.IntProperty && x.TimestampMillis == obj.Value.TimestampMillis);
+                Assert.IsTrue(found != default);
+            }
+
+            Assert.IsTrue(!(await _client.GetAllLatestSyncQueue<TestClassA>(category)).Any());
+
+            Assert.IsTrue((await _client.GetAllLatest<TestClassA>(category)).Count() == 100);
         }
 
         class TestClassA
@@ -916,6 +970,8 @@ namespace EightBot.Orbit.Tests
             public string StringProperty { get; set; }
 
             public int IntProperty { get; set; }
+
+            public long TimestampMillis { get; set; }
         }
 
 

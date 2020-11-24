@@ -471,9 +471,23 @@ namespace EightBot.Orbit.Client
                         () =>
                         {
                             var typeCollection = GetTypeCollection<T>(category);
-                            var itemQuery = GetItemQuery<T>(item, category);
 
                             return typeCollection.Upsert(item);
+                        })
+                    .ConfigureAwait(false);
+        }
+
+        public async Task<bool> UpsertCacheItems<T> (IEnumerable<T> items, string category = null)
+            where T : class
+        {
+            return
+                await _processingQueue
+                    .Queue(
+                        () =>
+                        {
+                            var typeCollection = GetTypeCollection<T>(category);
+
+                            return typeCollection.Upsert(items) == items.Count();
                         })
                     .ConfigureAwait(false);
         }
@@ -587,6 +601,24 @@ namespace EightBot.Orbit.Client
 
 
                     return syncCollection.Delete(GetItemQuery(obj, category)) > 0;
+                });
+        }
+
+        public Task<bool> TerminateSyncQueueHistories<T> (IEnumerable<T> objs, string category = null)
+            where T : class
+        {
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var syncCollection = GetSynchronizableTypeCollection<T>();
+
+                    var deletions = 0;
+                    foreach (var obj in objs)
+                    {
+                        deletions += syncCollection.Delete(GetItemQuery(obj, category));
+                    }
+
+                    return deletions == objs.Count();
                 });
         }
 
@@ -789,21 +821,41 @@ namespace EightBot.Orbit.Client
         public async Task Reconcile<T>(IEnumerable<ServerSyncInfo<T>> serverSyncInformation, string category = null)
             where T : class
         {
-            foreach (var serverSyncInfo in serverSyncInformation)
+            var latest = await GetSyncHistory<T>(SyncType.Latest, category).ConfigureAwait(false);
+
+            var replacements = new List<T>();
+            var inserts = new List<T>();
+
+            if(latest.Any())
             {
-                var clientInfo = await GetSyncHistory(serverSyncInfo.Value, category).ConfigureAwait(false);
-                var latestClientUpdate = clientInfo?.FirstOrDefault();
-
-                if(latestClientUpdate != null)
+                foreach (var serverSyncInfo in serverSyncInformation)
                 {
-                    var result = _syncReconciler.Reconcile(serverSyncInfo, latestClientUpdate);
+                    var serverItemId = GetId(serverSyncInfo.Value);
+                    var latestClientUpdate = latest.FirstOrDefault(x => GetId(x.Value).Equals(serverItemId));
 
-                    await TerminateSyncQueueHistory(latestClientUpdate.Value, category).ConfigureAwait(false);
-                    await UpsertCacheItem(result, category).ConfigureAwait(false);
-                    continue;
+                    if (latestClientUpdate != null)
+                    {
+                        replacements.Add(_syncReconciler.Reconcile(serverSyncInfo, latestClientUpdate));
+                        continue;
+                    }
+
+                    inserts.Add(serverSyncInfo.Value);
                 }
+            }
+            else
+            {
+                inserts.AddRange(serverSyncInformation.Select(x => x.Value).ToList());
+            }
 
-                await UpsertCacheItem(serverSyncInfo.Value, category).ConfigureAwait(false);
+            if(replacements.Any())
+            {
+                await TerminateSyncQueueHistories(replacements, category).ConfigureAwait(false);
+                await UpsertCacheItems(replacements, category).ConfigureAwait(false);
+            }
+            
+            if(inserts.Any())
+            {
+                await UpsertCacheItems(inserts, category).ConfigureAwait(false);
             }
         }
 

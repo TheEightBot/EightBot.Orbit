@@ -76,7 +76,7 @@ Task ("BuildCore")
 				.WithProperty("PackageVersion", version)
 				.SetMaxCpuCount(0)
 				.SetVerbosity(Verbosity.Quiet)
-				.UseToolVersion(MSBuildToolVersion.VS2017)
+				.UseToolVersion(MSBuildToolVersion.VS2019)
 				.SetMSBuildPlatform(MSBuildPlatform.x86)
 				.SetConfiguration(buildType)
 				.SetPlatformTarget(PlatformTarget.MSIL));

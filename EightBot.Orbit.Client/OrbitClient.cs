@@ -34,7 +34,7 @@ namespace EightBot.Orbit.Client
 
         private string _additionalConnectionStringParameters;
 
-        public static string CategorySeparator { get; set; } = "_-_";
+        public static string CategorySeparator { get; set; } = "___";
 
         public string CachePath { get; private set; }
 

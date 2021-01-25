@@ -889,25 +889,42 @@ namespace EightBot.Orbit.Client
 
         private LiteCollection<T> GetTypeCollection<T>(string category = null)
         {
-            var rti = _registeredTypes[typeof(T)];
-            var ctn = rti.GetCategoryTypeName(category);
-
-            if (!_db.CollectionExists(ctn))
-            {
-                var collection =
-                    !string.IsNullOrEmpty(ctn)
-                        ? _db.GetCollection<T>(ctn)
-                        : _db.GetCollection<T>();
-
-                if(!string.IsNullOrEmpty(rti.IdProperty))
+            return Retry (
+                () =>
                 {
-                    collection.EnsureIndex(rti.IdProperty);
-                }
+                    var rti = _registeredTypes[typeof(T)];
+                    var ctn = rti.GetCategoryTypeName(category);
 
-                return collection;
+                    if (!_db.CollectionExists(ctn))
+                    {
+                        var collection =
+                            !string.IsNullOrEmpty(ctn)
+                                ? _db.GetCollection<T>(ctn)
+                                : _db.GetCollection<T>();
+
+                        if(!string.IsNullOrEmpty(rti.IdProperty))
+                        {
+                            collection.EnsureIndex(rti.IdProperty);
+                        }
+
+                        return collection;
+                    }
+
+                    return _db.GetCollection<T>(ctn);
+                },
+                3);
+        }
+
+        public T Retry<T> (Func<T> action, int retryCount)
+        {
+            try
+            {
+                return action ();
             }
-
-            return _db.GetCollection<T>(ctn);
+            catch when (retryCount != 0)
+            {
+                return Retry (action, --retryCount);
+            }
         }
     }
 }

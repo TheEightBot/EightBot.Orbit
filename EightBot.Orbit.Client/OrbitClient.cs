@@ -461,7 +461,7 @@ namespace EightBot.Orbit.Client
                         {
                             var typeCollection = GetTypeCollection<T>(category);
 
-                            return typeCollection.Delete(GetItemQuery<T>(item, category)) == 1;
+                            return typeCollection.Delete(GetId (item));
                         })
                     .ConfigureAwait(false);
 

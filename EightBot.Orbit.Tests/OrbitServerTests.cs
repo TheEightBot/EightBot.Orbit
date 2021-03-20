@@ -17,7 +17,12 @@ namespace EightBot.Orbit.Tests
     [TestClass]
     public class OrbitServerTests
     {
-        public static readonly LoggerFactory Logger = new LoggerFactory(new[] { new DebugLoggerProvider((x, y) => true) });
+        public static readonly LoggerFactory Logger =
+            new LoggerFactory(
+                new[]
+                {
+                    new DebugLoggerProvider(),
+                });
 
         private IOrbitDataClient OrbitDataClient = null;
         private IDataClient DataClient = null;

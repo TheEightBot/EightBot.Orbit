@@ -6,6 +6,7 @@ using System.Linq.Expressions;
 using LiteDB;
 using System.Threading.Tasks.Dataflow;
 using System.Threading.Tasks;
+using System.Security.Cryptography.X509Certificates;
 
 namespace EightBot.Orbit.Client
 {
@@ -22,6 +23,8 @@ namespace EightBot.Orbit.Client
             SynchronizableOperationIndex = nameof(Synchronizable<object>.Operation);
 
         private readonly object _scaffoldingLock = new object();
+
+        private readonly object _typeCollectionLock = new object ();
 
         private readonly ISyncReconciler _syncReconciler;
 
@@ -378,10 +381,10 @@ namespace EightBot.Orbit.Client
 
                     var cacheable =
                         syncCollection
-                            .FindOne(
-                                Query.And(
-                                    Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
-                                    GetItemQueryWithId<T>(id, category)));
+                            .Query ()
+                            .Where (GetItemQueryWithId<T> (id, category))
+                            .OrderByDescending (x => x.ModifiedTimestamp)
+                            .FirstOrDefault ();
 
                     if (cacheable != null)
                         return cacheable.Value;
@@ -400,15 +403,18 @@ namespace EightBot.Orbit.Client
                 {
                     var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                    return syncCollection
-                        .Find(GetItemQuery<T>(category))
-                        ?.ToList()
-                        ?.OrderByDescending(x => x.ModifiedTimestamp)
-                        ?.GroupBy(x => x.TypeId)
-                        ?.Where(x => !x.Any(i => i.Operation == (int)ClientOperationType.Delete))
-                        ?.Select(x => x.First().Value)
-                        ?.ToList()
-                        ?? new List<T>();
+                    return
+                        syncCollection
+                            .Query()
+                            .Where(GetItemQuery<T> (category))
+                            .OrderByDescending(x => x.ModifiedTimestamp)
+                            .ToArray()
+                            ?.GroupBy(x => x.TypeId)
+                            ?.Where(x => !x.Any(i => i.Operation == (int)ClientOperationType.Delete))
+                            ?.Select(x => x.FirstOrDefault()?.Value)
+                            ?.Where(x => x != default)
+                            ?.ToList()
+                            ?? new List<T>();
                 });
         }
 
@@ -444,10 +450,10 @@ namespace EightBot.Orbit.Client
                     var rti = _registeredTypes[typeof(T)];
                     var ctn = rti.GetCategoryTypeName(category);
 
-                    if (!_db.CollectionExists(ctn))
-                        return true;
+                    var typeCollection = GetTypeCollection<T> (category);
 
-                    return _db.DropCollection(ctn);
+                    typeCollection.DeleteAll ();
+                    return true;
                 });
         }
 
@@ -492,7 +498,8 @@ namespace EightBot.Orbit.Client
                         {
                             var typeCollection = GetTypeCollection<T>(category);
 
-                            return typeCollection.Upsert(items) == items.Count();
+                            var upsertCount = typeCollection.Upsert (items);
+                            return upsertCount == items.Count();
                         })
                     .ConfigureAwait(false);
         }
@@ -512,18 +519,14 @@ namespace EightBot.Orbit.Client
                 {
                     var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                    var cacheables =
-                        syncCollection
-                            .Find(
-                                Query.And(
-                                    Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
-                                    GetItemQueryWithId<T>(id, category)))
-                            ?.ToList();
-
                     return
-                        cacheables
-                            ?.Select(x => GetAsClientSyncInfo(x))
-                            ?.ToList()
+                        syncCollection
+                            .Query()
+                            .Where(GetItemQueryWithId<T> (id, category))
+                            .OrderByDescending(x => x.ModifiedTimestamp)
+                            .ToArray()
+                            .Select(x => GetAsClientSyncInfo(x))
+                            .ToList()
                         ?? Enumerable.Empty<ClientSyncInfo<T>>();
                 });
         }
@@ -540,8 +543,10 @@ namespace EightBot.Orbit.Client
                     {
                         case SyncType.Latest:
                             return syncCollection
-                                .Find(GetItemQuery<T>(category, categorySearch))
-                                ?.OrderByDescending(x => x.ModifiedTimestamp)
+                                .Query()
+                                .Where(GetItemQuery<T>(category, categorySearch))
+                                .OrderByDescending(x => x.ModifiedTimestamp)
+                                .ToArray()
                                 ?.GroupBy(x => x.TypeId)
                                 ?.Select(
                                     x =>
@@ -605,7 +610,7 @@ namespace EightBot.Orbit.Client
 
 
 
-                    return syncCollection.Delete(GetItemQuery(obj, category)) > 0;
+                    return syncCollection.DeleteMany(GetItemQuery(obj, category)) > 0;
                 });
         }
 
@@ -620,7 +625,7 @@ namespace EightBot.Orbit.Client
                     var deletions = 0;
                     foreach (var obj in objs)
                     {
-                        deletions += syncCollection.Delete(GetItemQuery(obj, category));
+                        deletions += syncCollection.DeleteMany(GetItemQuery(obj, category));
                     }
 
                     return deletions == objs.Count();
@@ -635,7 +640,7 @@ namespace EightBot.Orbit.Client
                 {
                     var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                    return syncCollection.Delete(GetItemQuery<T>(category)) > 0;
+                    return syncCollection.DeleteMany(GetItemQuery<T>(category)) > 0;
                 });
         }
 
@@ -648,7 +653,7 @@ namespace EightBot.Orbit.Client
                     var syncCollection = GetSynchronizableTypeCollection<T>();
 
                     return syncCollection
-                        .Delete(
+                        .DeleteMany(
                             Query.And(
                                 GetItemQuery(obj, category),
                                 Query.EQ(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
@@ -664,7 +669,7 @@ namespace EightBot.Orbit.Client
                     var syncCollection = GetSynchronizableTypeCollection<T>();
 
                     return syncCollection
-                        .Delete(
+                        .DeleteMany(
                             Query.And(
                                 GetItemQuery(obj, category),
                                 Query.LT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
@@ -680,7 +685,7 @@ namespace EightBot.Orbit.Client
                     var syncCollection = GetSynchronizableTypeCollection<T>();
 
                     return syncCollection
-                        .Delete(
+                        .DeleteMany(
                             Query.And(
                                 GetItemQuery(obj, category),
                                 Query.GT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
@@ -727,10 +732,10 @@ namespace EightBot.Orbit.Client
 
                     var cacheable =
                         syncCollection
-                            .FindOne(
-                                Query.And(
-                                    Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
-                                    GetItemQueryWithId<T>(id, category)));
+                            .Query()
+                            .Where(GetItemQueryWithId<T> (id, category))
+                            .OrderByDescending(x => x.ModifiedTimestamp)
+                            .FirstOrDefault();
 
                     return cacheable;
                 });
@@ -773,14 +778,14 @@ namespace EightBot.Orbit.Client
             };
         }
 
-        private Query GetItemQuery<T>(T obj, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
+        private BsonExpression GetItemQuery<T>(T obj, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
             where T : class
         {
             var id = GetId<T>(obj);
             return GetItemQueryWithId<T>(id, category, categorySearch);
         }
 
-        private Query GetItemQuery<T>(string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
+        private BsonExpression GetItemQuery<T>(string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
             where T : class
         {
             return
@@ -802,7 +807,7 @@ namespace EightBot.Orbit.Client
                                     Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()));
         }
 
-        private Query GetItemQueryWithId<T>(BsonValue id, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
+        private BsonExpression GetItemQueryWithId<T>(BsonValue id, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
             where T : class
         {
             return
@@ -825,8 +830,8 @@ namespace EightBot.Orbit.Client
                                 Query.EQ(SynchronizableTypeIdIndex, id),
                                 Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()));
         }
-
-        public async Task Reconcile<T>(IEnumerable<ServerSyncInfo<T>> serverSyncInformation, string category = null)
+        
+        public async Task<bool> Reconcile<T>(IEnumerable<ServerSyncInfo<T>> serverSyncInformation, string category = null)
             where T : class
         {
             var latest = await GetSyncHistory<T>(SyncType.Latest, category).ConfigureAwait(false);
@@ -858,13 +863,15 @@ namespace EightBot.Orbit.Client
             if(replacements.Any())
             {
                 await TerminateSyncQueueHistories(replacements, category).ConfigureAwait(false);
-                await UpsertCacheItems(replacements, category).ConfigureAwait(false);
+                return await UpsertCacheItems(replacements, category).ConfigureAwait(false);
             }
             
             if(inserts.Any())
             {
-                await UpsertCacheItems(inserts, category).ConfigureAwait(false);
+                return await UpsertCacheItems(inserts, category).ConfigureAwait(false);
             }
+
+            return true;
         }
 
         private BsonValue GetId<T>(T obj)
@@ -882,35 +889,38 @@ namespace EightBot.Orbit.Client
             return rti.TypeFullName;
         }
 
-        private LiteCollection<Synchronizable<T>> GetSynchronizableTypeCollection<T>()
+        private ILiteCollection<Synchronizable<T>> GetSynchronizableTypeCollection<T>()
         {
             return _db.GetCollection<Synchronizable<T>>(SyncCollection);
         }
 
-        private LiteCollection<T> GetTypeCollection<T>(string category = null)
+        private ILiteCollection<T> GetTypeCollection<T>(string category = null)
         {
             return Retry (
                 () =>
                 {
-                    var rti = _registeredTypes[typeof(T)];
-                    var ctn = rti.GetCategoryTypeName(category);
-
-                    if (!_db.CollectionExists(ctn))
+                    lock(_typeCollectionLock)
                     {
-                        var collection =
-                            !string.IsNullOrEmpty(ctn)
-                                ? _db.GetCollection<T>(ctn)
-                                : _db.GetCollection<T>();
+                        var rti = _registeredTypes[typeof(T)];
+                        var ctn = rti.GetCategoryTypeName(category);
 
-                        if(!string.IsNullOrEmpty(rti.IdProperty))
+                        if (!_db.CollectionExists(ctn))
                         {
-                            collection.EnsureIndex(rti.IdProperty);
+                            var collection =
+                                !string.IsNullOrEmpty(ctn)
+                                    ? _db.GetCollection<T>(ctn)
+                                    : _db.GetCollection<T>();
+
+                            if(!string.IsNullOrEmpty(rti.IdProperty))
+                            {
+                                collection.EnsureIndex(rti.IdProperty);
+                            }
+
+                            return collection;
                         }
 
-                        return collection;
+                        return _db.GetCollection<T>(ctn);
                     }
-
-                    return _db.GetCollection<T>(ctn);
                 },
                 3);
         }

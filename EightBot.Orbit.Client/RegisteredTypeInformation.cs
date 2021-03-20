@@ -30,7 +30,7 @@ namespace EightBot.Orbit.Client
             var rti =
                 new RegisteredTypeInformation
                 {
-                    TypeFullName = type.FullName,
+                    TypeFullName = type.FullName?.Replace('+', '_'),
                     TypeName = typeNameOverride ?? type.Name,
                     TypeNamespace = type.Namespace,
                     ObjectType = type
@@ -50,7 +50,7 @@ namespace EightBot.Orbit.Client
                     {
                         PropertyIdSelector = pi,
                         IdProperty = pi.Name,
-                        TypeFullName = type.FullName,
+                        TypeFullName = type.FullName?.Replace ('+', '_'),
                         TypeName = typeNameOverride ?? type.Name,
                         TypeNamespace = type.Namespace,
                         ObjectType = type
@@ -74,7 +74,7 @@ namespace EightBot.Orbit.Client
                     {
                         FuncIdSelector = compiledExpression,
                         IdProperty = pi.Name,
-                        TypeFullName = type.FullName,
+                        TypeFullName = type.FullName?.Replace ('+', '_'),
                         TypeName = typeNameOverride ?? type.Name,
                         TypeNamespace = type.Namespace,
                         ObjectType = type

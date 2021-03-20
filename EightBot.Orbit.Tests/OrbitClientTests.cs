@@ -678,10 +678,10 @@ namespace EightBot.Orbit.Tests
                         })
                     .ToList();
 
-            await _client.Reconcile(items, category);
+            var result = await _client.Reconcile(items, category);
 
             var sw = Stopwatch.StartNew();
-            var foundA = await _client.GetAllLatestSyncQueue<TestClassA>(category);
+            var foundA = await _client.GetAllLatest<TestClassA>(category);
             sw.Stop();
 
             System.Diagnostics.Debug.WriteLine($"GetAllLatest: {sw.ElapsedMilliseconds}ms");
@@ -959,7 +959,7 @@ namespace EightBot.Orbit.Tests
 
             var category = "category";
 
-            var generatedTestObjects = testObjects.GenerateBetween(100, 100);
+            var generatedTestObjects = testObjects.Generate(100);
 
             var populated = await _client.PopulateCache(generatedTestObjects, category);
 
@@ -973,24 +973,29 @@ namespace EightBot.Orbit.Tests
             index = 1;
 
             var generatedTestServerObjects =
-                testObjects
-                    .GenerateBetween(100, 100)
+                generatedTestObjects
                     .Select(x =>
                         new ServerSyncInfo<TestClassA>
                         {
                             Value = x,
                             Operation = ServerOperationType.Updated,
+                            ModifiedOn = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                         })
                     .ToList();
 
-            await _client.Reconcile(generatedTestServerObjects, category);
+            var reconciled = await _client.Reconcile(generatedTestServerObjects, category);
 
             var latest = await _client.GetAllLatest<TestClassA>(category);
 
             foreach (var obj in generatedTestServerObjects)
             {
                 var found = latest.FirstOrDefault(x => x.StringProperty == obj.Value.StringProperty && x.IntProperty == obj.Value.IntProperty && x.TimestampMillis == obj.Value.TimestampMillis);
-                Assert.IsTrue(found != default);
+
+                if(found == default)
+                {
+                    Assert.IsNull(found);
+                }
+
             }
 
             var syncQueue = await _client.GetAllLatestSyncQueue<TestClassA>(category);

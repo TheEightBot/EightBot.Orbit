@@ -8,8 +8,8 @@
     <ProjectReference Include="..\EightBot.Orbit.Core\EightBot.Orbit.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="LiteDB" Version="4.1.4" />
-    <PackageReference Include="System.Threading.Tasks.Dataflow" Version="4.9.0" />
+    <PackageReference Include="LiteDB" Version="5.0.10" />
+    <PackageReference Include="System.Threading.Tasks.Dataflow" Version="5.0.0" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="SyncReconcilers\" />

@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
-using LiteDB;
-using System.Threading.Tasks.Dataflow;
 using System.Threading.Tasks;
+using LiteDB;
 
 namespace EightBot.Orbit.Client
 {
@@ -176,89 +175,82 @@ namespace EightBot.Orbit.Client
         public Task<(bool Success, ClientOperationType OperationResult)> Create<T>(T obj, string category = null)
             where T : class
         {
-            return _processingQueue
-                .Queue(
-                    () =>
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var result = ItemExistsAndAvailable(obj, category);
+
+                    if (!result.IsDeleted && !result.Exists)
                     {
-                        var result = ItemExistsAndAvailable(obj, category);
+                        var syncCollection = GetSynchronizableTypeCollection<T>();
+                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
 
-                        if (!result.IsDeleted && !result.Exists)
-                        {
-                            var syncCollection = GetSynchronizableTypeCollection<T>();
-                            syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
+                        return (true, ClientOperationType.Create);
+                    }
 
-                            return (true, ClientOperationType.Create);
-                        }
-
-                        return (false, ClientOperationType.NoOperation);
-                    });
+                    return (false, ClientOperationType.NoOperation);
+                });
         }
 
         public Task<(bool Success, ClientOperationType OperationResult)> Update<T>(T obj, string category = null)
             where T : class
         {
-            return 
-                _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var result = ItemExistsAndAvailable(obj, category);
-                            if (!result.IsDeleted && result.Exists)
-                            {
-                                var syncCollection = GetSynchronizableTypeCollection<T>();
-                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
-                                return (true, ClientOperationType.Update);
-                            }
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var result = ItemExistsAndAvailable(obj, category);
+                    if (!result.IsDeleted && result.Exists)
+                    {
+                        var syncCollection = GetSynchronizableTypeCollection<T>();
+                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
+                        return (true, ClientOperationType.Update);
+                    }
 
-                            return (false, ClientOperationType.NoOperation);
-                        });
+                    return (false, ClientOperationType.NoOperation);
+                });
         }
 
         public Task<(bool Success, ClientOperationType OperationResult)> Upsert<T>(T obj, string category = null)
             where T : class
         {
-            return
-                _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var syncCollection = GetSynchronizableTypeCollection<T>();
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                            var result = ItemExistsAndAvailable(obj, category);
+                    var result = ItemExistsAndAvailable(obj, category);
 
-                            if (!result.IsDeleted && result.Exists)
-                            {
-                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
-                                return (true, ClientOperationType.Update);
-                            }
-                            else if(!result.IsDeleted)
-                            {
-                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
-                                return (true, ClientOperationType.Create);
-                            }
+                    if (!result.IsDeleted && result.Exists)
+                    {
+                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
+                        return (true, ClientOperationType.Update);
+                    }
+                    else if(!result.IsDeleted)
+                    {
+                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
+                        return (true, ClientOperationType.Create);
+                    }
 
-                            return (false, ClientOperationType.NoOperation);
-                        });
+                    return (false, ClientOperationType.NoOperation);
+                });
         }
 
         public Task<(bool Success, ClientOperationType OperationResult)> Delete<T>(T obj, string category = null)
             where T : class
         {
-            return
-                _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var result = ItemExistsAndAvailable(obj, category);
-                            if (!result.IsDeleted && result.Exists)
-                            {
-                                var syncCollection = GetSynchronizableTypeCollection<T>();
-                                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Delete, category));
-                                return (true, ClientOperationType.Delete);
-                            }
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var result = ItemExistsAndAvailable(obj, category);
+                    if (!result.IsDeleted && result.Exists)
+                    {
+                        var syncCollection = GetSynchronizableTypeCollection<T>();
+                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Delete, category));
+                        return (true, ClientOperationType.Delete);
+                    }
 
-                            return (false, ClientOperationType.NoOperation);
-                        });
+                    return (false, ClientOperationType.NoOperation);
+                });
         }
 
         public async Task<IEnumerable<string>> GetCategories<T>()
@@ -308,14 +300,13 @@ namespace EightBot.Orbit.Client
         public Task<List<T>> GetAllOf<T> (string category = null)
             where T : class
         {
-            return _processingQueue
-                .Queue(
-                    () =>
-                    {
-                        var typeCollection = GetTypeCollection<T>(category);
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var typeCollection = GetTypeCollection<T>(category);
 
-                        return typeCollection.FindAll().ToList();
-                    });
+                    return typeCollection.FindAll().ToList();
+                });
         }
 
         public async Task<IEnumerable<T>> GetAllLatest<T>(string category = null)
@@ -425,16 +416,15 @@ namespace EightBot.Orbit.Client
             if (terminateSyncQueueHistory && !(await TerminateSyncQueueHistory<T>(category).ConfigureAwait(false)))
                 return false;
 
-            return 
-                await _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var typeCollection = GetTypeCollection<T>(category);
+            return await _processingQueue
+                .Queue(
+                    () =>
+                    {
+                        var typeCollection = GetTypeCollection<T>(category);
 
-                            return typeCollection.InsertBulk(items) == items.Count();
-                        })
-                    .ConfigureAwait(false);
+                        return typeCollection.Upsert(items) == items.Count();
+                    })
+                .ConfigureAwait(false);
 
         }
 
@@ -446,6 +436,8 @@ namespace EightBot.Orbit.Client
                     var rti = _registeredTypes[typeof(T)];
                     var ctn = rti.GetCategoryTypeName(category);
 
+                    var typeCollection = GetTypeCollection<T> (category);
+
                     if (!_db.CollectionExists(ctn))
                         return true;
 
@@ -453,50 +445,40 @@ namespace EightBot.Orbit.Client
                 });
         }
 
-        public async Task<bool> DeleteCacheItem<T>(T item, string category = null)
+        public Task<bool> DeleteCacheItem<T>(T item, string category = null)
             where T : class
         {
-            return
-                await _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var typeCollection = GetTypeCollection<T>(category);
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var typeCollection = GetTypeCollection<T>(category);
 
-                            return typeCollection.Delete(GetId (item));
-                        })
-                    .ConfigureAwait(false);
-
+                    return typeCollection.Delete(GetId (item));
+                });
         }
 
-        public async Task<bool> UpsertCacheItem<T>(T item, string category = null)
+        public Task<bool> UpsertCacheItem<T>(T item, string category = null)
             where T : class
         {
-            return
-                await _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var typeCollection = GetTypeCollection<T>(category);
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var typeCollection = GetTypeCollection<T>(category);
 
-                            return typeCollection.Upsert(item);
-                        })
-                    .ConfigureAwait(false);
+                    return typeCollection.Upsert(item);
+                });
         }
 
-        public async Task<bool> UpsertCacheItems<T> (IEnumerable<T> items, string category = null)
+        public Task<bool> UpsertCacheItems<T> (IEnumerable<T> items, string category = null)
             where T : class
         {
-            return
-                await _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var typeCollection = GetTypeCollection<T>(category);
+            return _processingQueue.Queue(
+                () =>
+                {
+                    var typeCollection = GetTypeCollection<T>(category);
 
-                            return typeCollection.Upsert(items) == items.Count();
-                        })
-                    .ConfigureAwait(false);
+                    return typeCollection.Upsert(items) == items.Count();
+                });
         }
 
         public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(T obj, string category = null)
@@ -610,8 +592,6 @@ namespace EightBot.Orbit.Client
                 () =>
                 {
                     var syncCollection = GetSynchronizableTypeCollection<T>();
-
-
 
                     return syncCollection.Delete(GetItemQuery(obj, category)) > 0;
                 });
@@ -925,7 +905,7 @@ namespace EightBot.Orbit.Client
                 3);
         }
 
-        public T Retry<T> (Func<T> action, int retryCount)
+        private T Retry<T> (Func<T> action, int retryCount)
         {
             try
             {

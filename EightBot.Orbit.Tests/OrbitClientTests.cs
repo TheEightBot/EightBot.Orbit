@@ -681,10 +681,10 @@ namespace EightBot.Orbit.Tests
             await _client.Reconcile(items, category);
 
             var sw = Stopwatch.StartNew();
-            var foundA = await _client.GetAllLatestSyncQueue<TestClassA>(category);
+            var foundA = await _client.GetAllLatest<TestClassA>(category);
             sw.Stop();
 
-            System.Diagnostics.Debug.WriteLine($"GetAllLatest: {sw.ElapsedMilliseconds}ms");
+            Console.WriteLine($"GetAllLatest: {sw.ElapsedMilliseconds}ms");
 
             foundA.Should().NotBeEmpty();
         }
@@ -831,6 +831,41 @@ namespace EightBot.Orbit.Tests
             var updated = latest.FirstOrDefault(x => x.StringProperty == original.StringProperty);
 
             Assert.IsTrue(updated.IntProperty == foundObject.IntProperty);
+        }
+
+        [TestMethod]
+        public async Task OrbitClient_BulkInsertAndDelete_ShouldDeleteAll ()
+        {
+            var expected = 100;
+
+            var testObjects =
+                new Faker<TestClassA> ()
+                    .RuleFor (x => x.StringProperty, (f, u) => $"String_{f.IndexFaker}")
+                    .RuleFor (x => x.IntProperty, (f, u) => f.IndexFaker);
+
+            var category = "category";
+
+            var generatedTestObjects = testObjects.GenerateBetween (100, 100);
+
+            var populated = await _client.PopulateCache (generatedTestObjects, category);
+
+            Assert.IsTrue (populated);
+
+            var deleteCount = 0;
+
+            foreach (var generatedTestObject in generatedTestObjects)
+            {
+                var deleteResult = await _client.DeleteCacheItem (generatedTestObject, category);
+
+                if(deleteResult == true)
+                {
+                    deleteCount += 1;
+                }
+
+                Assert.IsTrue (deleteResult);
+            }
+
+            Assert.AreEqual (expected, deleteCount);
         }
 
         [TestMethod]
@@ -998,6 +1033,46 @@ namespace EightBot.Orbit.Tests
 
             var allLatest = await _client.GetAllLatest<TestClassA>(category);
             Assert.IsTrue(allLatest.Count() == 100);
+        }
+
+        [TestMethod]
+        public async Task OrbitClient_SlamItWithMessagesConcurrently_ShouldBeOkay ()
+        {
+
+            var testAObjects =
+                new Faker<TestClassA> ()
+                    .RuleFor (x => x.StringProperty, (f, u) => $"String_{f.IndexFaker}")
+                    .RuleFor (x => x.IntProperty, (f, u) => f.IndexFaker);
+
+            var testBObjects =
+                new Faker<TestClassB> ()
+                    .RuleFor (x => x.StringProperty, (f, u) => $"String_{f.IndexFaker}")
+                    .RuleFor (x => x.DoubleProperty, (f, u) => f.IndexFaker);
+
+            var generatedTestAObjects = testAObjects.GenerateBetween (10000, 100000);
+
+            var generatedTestBObjects = testAObjects.GenerateBetween (10000, 100000);
+
+            Exception exception = null;
+            for (int i = 0; i < 10; i++)
+            {
+                try
+                {
+                    var populatedATask = _client.PopulateCache (generatedTestAObjects);
+                    var latestATask = _client.GetAllLatest<TestClassA> ();
+                    var populatedBTask = _client.PopulateCache (generatedTestBObjects);
+                    var latestBTask = _client.GetAllLatest<TestClassB> ();
+
+                    await Task.WhenAll (populatedATask, populatedBTask, latestATask, latestBTask);
+                }
+                catch (Exception ex)
+                {
+                    exception = ex;
+                }
+
+            }
+
+            Assert.IsNull (exception);
         }
 
         class TestClassA

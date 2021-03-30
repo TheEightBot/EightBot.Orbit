@@ -63,7 +63,14 @@ namespace EightBot.Orbit.Client
 
                     _db = new LiteDatabase($"Filename={CachePath};{additionalConnectionStringParameters}");
 
-                    _db.Shrink ();
+                    try
+                    {
+                        _db.Shrink ();
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // There is not much we can do here. Some platforms do not accept this configuration
+                    }
 
                     var syncCollection = _db.GetCollection(SyncCollection);
 
@@ -715,7 +722,20 @@ namespace EightBot.Orbit.Client
                 await UpsertCacheItems (inserts, category).ConfigureAwait (false);
             }
 
-            await _processingQueue.Queue (() => _db.Shrink ()).ConfigureAwait (false);
+            await _processingQueue
+                .Queue (
+                    () =>
+                    {
+                        try
+                        {
+                            _db.Shrink ();
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            // There is not much we can do here. Some platforms do not accept this configuration
+                        }
+                    })
+                .ConfigureAwait (false);
         }
 
         private (bool IsDeleted, bool Exists) ItemExistsAndAvailable<T>(T obj, string category = null)

@@ -115,6 +115,16 @@ namespace EightBot.Orbit.Client
             }
         }
 
+        public Task CleanUp()
+        {
+            return _processingQueue
+                .Queue (
+                    () =>
+                    {
+                        _db.Shrink ();
+                    });
+        }
+
         public OrbitClient AddTypeRegistration<T>(Func<T, Task> additionalProcessing = null, string typeNameOverride = null)
             where T : class
         {
@@ -722,20 +732,7 @@ namespace EightBot.Orbit.Client
                 await UpsertCacheItems (inserts, category).ConfigureAwait (false);
             }
 
-            await _processingQueue
-                .Queue (
-                    () =>
-                    {
-                        try
-                        {
-                            _db.Shrink ();
-                        }
-                        catch (InvalidOperationException)
-                        {
-                            // There is not much we can do here. Some platforms do not accept this configuration
-                        }
-                    })
-                .ConfigureAwait (false);
+            await CleanUp ().ConfigureAwait (false);
         }
 
         private (bool IsDeleted, bool Exists) ItemExistsAndAvailable<T>(T obj, string category = null)

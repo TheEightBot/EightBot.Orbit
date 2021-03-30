@@ -64,6 +64,8 @@ namespace EightBot.Orbit.Client
 
                     _db = new LiteDatabase($"Filename={CachePath};{additionalConnectionStringParameters}");
 
+                    _db.Shrink ();
+
                     var syncCollection = _db.GetCollection(SyncCollection);
 
                     syncCollection.EnsureIndex(SynchronizableTypeIdIndex);
@@ -687,6 +689,49 @@ namespace EightBot.Orbit.Client
                 });
         }
 
+        public async Task Reconcile<T> (IEnumerable<ServerSyncInfo<T>> serverSyncInformation, string category = null)
+            where T : class
+        {
+            var latest = await GetSyncHistory<T> (SyncType.Latest, category).ConfigureAwait (false);
+
+            var replacements = new List<T> ();
+            var inserts = new List<T> ();
+
+            if (latest.Any ())
+            {
+                foreach (var serverSyncInfo in serverSyncInformation)
+                {
+                    var serverItemId = GetId (serverSyncInfo.Value);
+                    var latestClientUpdate = latest.FirstOrDefault (x => GetId (x.Value).Equals (serverItemId));
+
+                    if (latestClientUpdate != null)
+                    {
+                        replacements.Add (_syncReconciler.Reconcile (serverSyncInfo, latestClientUpdate));
+                        continue;
+                    }
+
+                    inserts.Add (serverSyncInfo.Value);
+                }
+            }
+            else
+            {
+                inserts.AddRange (serverSyncInformation.Select (x => x.Value).ToList ());
+            }
+
+            if (replacements.Any ())
+            {
+                await TerminateSyncQueueHistories (replacements, category).ConfigureAwait (false);
+                await UpsertCacheItems (replacements, category).ConfigureAwait (false);
+            }
+
+            if (inserts.Any ())
+            {
+                await UpsertCacheItems (inserts, category).ConfigureAwait (false);
+            }
+
+            await _processingQueue.Queue (() => _db.Shrink ()).ConfigureAwait (false);
+        }
+
         private (bool IsDeleted, bool Exists) ItemExistsAndAvailable<T>(T obj, string category = null)
             where T : class
         {
@@ -824,47 +869,6 @@ namespace EightBot.Orbit.Client
                             : Query.And(
                                 Query.EQ(SynchronizableTypeIdIndex, id),
                                 Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()));
-        }
-
-        public async Task Reconcile<T>(IEnumerable<ServerSyncInfo<T>> serverSyncInformation, string category = null)
-            where T : class
-        {
-            var latest = await GetSyncHistory<T>(SyncType.Latest, category).ConfigureAwait(false);
-
-            var replacements = new List<T>();
-            var inserts = new List<T>();
-
-            if(latest.Any())
-            {
-                foreach (var serverSyncInfo in serverSyncInformation)
-                {
-                    var serverItemId = GetId(serverSyncInfo.Value);
-                    var latestClientUpdate = latest.FirstOrDefault(x => GetId(x.Value).Equals(serverItemId));
-
-                    if (latestClientUpdate != null)
-                    {
-                        replacements.Add(_syncReconciler.Reconcile(serverSyncInfo, latestClientUpdate));
-                        continue;
-                    }
-
-                    inserts.Add(serverSyncInfo.Value);
-                }
-            }
-            else
-            {
-                inserts.AddRange(serverSyncInformation.Select(x => x.Value).ToList());
-            }
-
-            if(replacements.Any())
-            {
-                await TerminateSyncQueueHistories(replacements, category).ConfigureAwait(false);
-                await UpsertCacheItems(replacements, category).ConfigureAwait(false);
-            }
-            
-            if(inserts.Any())
-            {
-                await UpsertCacheItems(inserts, category).ConfigureAwait(false);
-            }
         }
 
         private BsonValue GetId<T>(T obj)

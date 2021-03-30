@@ -545,17 +545,23 @@ namespace EightBot.Orbit.Client
                                 .Find(GetItemQuery<T>(category, categorySearch))
                                 ?.OrderByDescending(x => x.ModifiedTimestamp)
                                 ?.GroupBy(x => x.TypeId)
+                                ?.Where(x => x?.Any() ?? false)
                                 ?.Select(
                                     x =>
                                     {
-                                        var latest = x.First();
-                                        return GetAsClientSyncInfo(latest);
+                                        var latest = x.FirstOrDefault();
+                                        return
+                                            latest != default
+                                                ? GetAsClientSyncInfo(latest)
+                                                : default;
                                     })
+                                ?.Where (x => x != default)
                                 ?.ToList()
                                 ?? Enumerable.Empty<ClientSyncInfo<T>>();
                         case SyncType.FullHistory:
                             return syncCollection
                                 .Find(GetItemQuery<T>(category, categorySearch))
+                                ?.Where(x => x != default)
                                 ?.OrderBy(x => x.ModifiedTimestamp)
                                 ?.Select(x => GetAsClientSyncInfo(x))
                                 ?.ToList()

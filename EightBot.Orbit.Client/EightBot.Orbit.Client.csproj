@@ -1,17 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>netstandard2.1</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\EightBot.Orbit.Core\EightBot.Orbit.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="LiteDB" Version="4.1.4" />
     <PackageReference Include="System.Threading.Tasks.Dataflow" Version="5.0.0" />
+    <PackageReference Include="EightBot.Tycho" Version="1.2022.120.10" />
+    <PackageReference Include="EightBot.Tycho.JsonSerializer.NewtonsoftJson" Version="1.2022.120.10" />
+    <PackageReference Include="EightBot.Tycho.JsonSerializer" Version="1.2022.120.10" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="SyncReconcilers\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="EightBot.Tycho.NewtonsoftJson" />
+    <None Remove="EightBot.Tycho" />
+    <None Remove="EightBot.Tycho.JsonSerializer.NewtonsoftJson" />
+    <None Remove="EightBot.Tycho.JsonSerializer" />
   </ItemGroup>
 </Project>

@@ -3,20 +3,20 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
-using LiteDB;
+using System.Threading.Tasks.Sources;
+using Tycho;
 
 namespace EightBot.Orbit.Client
 {
-    public class OrbitClient
+    public class OrbitClient : IDisposable
     {
         private const string
             OrbitCacheDb = "OrbitCache.db",
             SyncCollection = "Synchronizable",
 
             SynchronizableTypeIdIndex = nameof(Synchronizable<object>.TypeId),
-            SynchronizableCategory = nameof(Synchronizable<object>.Category),
-            SynchronizableTypeNameIndex = nameof(Synchronizable<object>.TypeName),
             SynchronizableModifiedTimestampIndex = nameof(Synchronizable<object>.ModifiedTimestamp),
             SynchronizableOperationIndex = nameof(Synchronizable<object>.Operation);
 
@@ -24,16 +24,14 @@ namespace EightBot.Orbit.Client
 
         private readonly ISyncReconciler _syncReconciler;
 
-        private readonly Dictionary<Type, RegisteredTypeInformation> _registeredTypes =
-            new Dictionary<Type, RegisteredTypeInformation>();
-
         private readonly ProcessingQueue _processingQueue = new ProcessingQueue();
 
-        private LiteDatabase _db;
+        private TychoDb _db;
+        private bool disposedValue;
 
-        private string _additionalConnectionStringParameters;
+        public static string PartitionSeparator { get; set; } = "___";
 
-        public static string CategorySeparator { get; set; } = "___";
+        public string CacheDirectory { get; private set; }
 
         public string CachePath { get; private set; }
 
@@ -44,13 +42,15 @@ namespace EightBot.Orbit.Client
             _syncReconciler = syncReconciler ?? new SyncReconcilers.ServerWinsSyncReconciler();
         }
 
-        public OrbitClient Initialize(string cacheDirectory, string customCacheName = null, string additionalConnectionStringParameters = null, bool deleteExistingCache = false)
+        public OrbitClient Initialize(string cacheDirectory, string customCacheName = null, bool deleteExistingCache = false)
         {
             lock(_scaffoldingLock)
             {
                 if(!Initialized)
                 {
                     Initialized = true;
+
+                    CacheDirectory = cacheDirectory;
 
                     CachePath = Path.Combine(cacheDirectory, customCacheName ?? OrbitCacheDb);
 
@@ -59,26 +59,15 @@ namespace EightBot.Orbit.Client
                         File.Delete(CachePath);
                     }
 
-                    _additionalConnectionStringParameters = additionalConnectionStringParameters;
+                    _db =
+                        new TychoDb(cacheDirectory, new NewtonsoftJsonSerializer(), rebuildCache: deleteExistingCache, requireTypeRegistration: true);
 
-                    _db = new LiteDatabase($"Filename={CachePath};{additionalConnectionStringParameters}");
+                    _db.Connect();
 
-                    try
-                    {
-                        _db.Shrink ();
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        // There is not much we can do here. Some platforms do not accept this configuration
-                    }
-
-                    var syncCollection = _db.GetCollection(SyncCollection);
-
-                    syncCollection.EnsureIndex(SynchronizableTypeIdIndex);
-                    syncCollection.EnsureIndex(SynchronizableCategory);
-                    syncCollection.EnsureIndex(SynchronizableTypeNameIndex);
-                    syncCollection.EnsureIndex(SynchronizableModifiedTimestampIndex);
-                    syncCollection.EnsureIndex(SynchronizableOperationIndex);
+                    _db.AddTypeRegistration<Synchronizable<object>>();
+                    _db.CreateIndex<Synchronizable<object>>(x => x.TypeId, "idxSynchronizableTypeId");
+                    _db.CreateIndex<Synchronizable<object>>(x => x.ModifiedTimestamp, "idxSynchronizableModifiedTimestamp");
+                    _db.CreateIndex<Synchronizable<object>>(x => x.Operation, "idxSynchronizableOperation");
                 }
             }
 
@@ -89,12 +78,13 @@ namespace EightBot.Orbit.Client
         {
             lock(_scaffoldingLock)
             {
-                if (Initialized && _db != null)
+                if (Initialized)
                 {
                     return this;
                 }
 
-                _db = new LiteDatabase($"Filename={CachePath};{_additionalConnectionStringParameters}");
+                _db.Connect();
+
                 Initialized = true;
 
                 return this;
@@ -105,27 +95,18 @@ namespace EightBot.Orbit.Client
         {
             lock(_scaffoldingLock)
             {
-                if (!Initialized || _db == null)
+                if (!Initialized)
                     return;
 
-                _db?.Dispose();
-                _db = null;
+                _db?.Disconnect();
 
                 Initialized = false;
             }
         }
 
-        public Task CleanUp()
-        {
-            return _processingQueue
-                .Queue (
-                    () =>
-                    {
-                        _db.Shrink ();
-                    });
-        }
-
-        public OrbitClient AddTypeRegistration<T>(Func<T, Task> additionalProcessing = null, string typeNameOverride = null)
+        public OrbitClient AddTypeRegistration<T, TId>(
+            Expression<Func<T, object>> idSelector,
+            EqualityComparer<TId> idComparer = null)
             where T : class
         {
             lock (_scaffoldingLock)
@@ -133,74 +114,43 @@ namespace EightBot.Orbit.Client
                 if (!Initialized)
                     throw new ClientNotInitializedException($"{nameof(Initialize)} must be called before you can add type registrations.");
 
-                var rti = RegisteredTypeInformation.Create<T>(typeNameOverride);
-
-                _registeredTypes[rti.ObjectType] = rti;
+                _db.AddTypeRegistration<T, TId>(idSelector, idComparer);
+                _db.AddTypeRegistration<Synchronizable<T>, Guid>(x => x.Id);
             }
-
 
             return this;
         }
 
-        public OrbitClient AddTypeRegistration<T, TIdSelectorType>(Expression<Func<T, TIdSelectorType>> idSelector, Func<T, Task> additionalProcessing = null, bool requiresIdMapping = false, string typeNameOverride = null)
+        public OrbitClient AddTypeRegistrationWithCustomKeySelector<T>(
+            Func<T, string> idSelector,
+            EqualityComparer<string> idComparer = null)
             where T : class
         {
-            lock(_scaffoldingLock)
+            lock (_scaffoldingLock)
             {
                 if (!Initialized)
                     throw new ClientNotInitializedException($"{nameof(Initialize)} must be called before you can add type registrations.");
 
-                var rti = RegisteredTypeInformation.Create(idSelector, typeNameOverride);
-
-                _registeredTypes[rti.ObjectType] = rti;
-
-                if(requiresIdMapping)
-                {
-                    _db.Mapper
-                        .Entity<T>()
-                        .Id(idSelector, false);
-                }
-            }
-
-
-            return this;
-        }
-
-        public OrbitClient AddTypeRegistration<T, TIdSelectorType, TIdPropertyType>(Expression<Func<T, TIdSelectorType>> idSelector, Expression<Func<T, TIdPropertyType>> idProperty, bool requiresIdMapping = false, string typeNameOverride = null)
-            where T : class
-        {
-            lock(_scaffoldingLock)
-            {
-                if (!Initialized)
-                    throw new ClientNotInitializedException($"{nameof(Initialize)} must be called before you can add type registrations.");
-
-                var rti = RegisteredTypeInformation.Create(idSelector, idProperty, typeNameOverride);
-
-                _registeredTypes[rti.ObjectType] = rti;
-
-                if(requiresIdMapping)
-                {
-                    _db.Mapper
-                        .Entity<T>()
-                        .Id(idProperty, false);
-                }
+                _db.AddTypeRegistrationWithCustomKeySelector<T>(idSelector, idComparer);
+                _db.AddTypeRegistration<Synchronizable<T>, Guid>(x => x.Id);
             }
 
             return this;
         }
 
-        public Task<(bool Success, ClientOperationType OperationResult)> Create<T>(T obj, string category = null)
+        public Task<(bool Success, ClientOperationType OperationResult)> Create<T>(T obj, string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var result = ItemExistsAndAvailable(obj, category);
+                    var result = await ItemExistsAndAvailable(obj, partition).ConfigureAwait(false);
 
                     if (!result.IsDeleted && !result.Exists)
                     {
-                        var syncCollection = GetSynchronizableTypeCollection<T>();
-                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
+                        await _db
+                            .WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Create), partition)
+                            .ConfigureAwait(false);
 
                         return (true, ClientOperationType.Create);
                     }
@@ -209,17 +159,20 @@ namespace EightBot.Orbit.Client
                 });
         }
 
-        public Task<(bool Success, ClientOperationType OperationResult)> Update<T>(T obj, string category = null)
+        public Task<(bool Success, ClientOperationType OperationResult)> Update<T>(T obj, string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var result = ItemExistsAndAvailable(obj, category);
+                    var result = await ItemExistsAndAvailable(obj, partition).ConfigureAwait(false);
+
                     if (!result.IsDeleted && result.Exists)
                     {
-                        var syncCollection = GetSynchronizableTypeCollection<T>();
-                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
+                        await _db
+                            .WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Update, partition), partition)
+                            .ConfigureAwait(false);
+
                         return (true, ClientOperationType.Update);
                     }
 
@@ -227,24 +180,28 @@ namespace EightBot.Orbit.Client
                 });
         }
 
-        public Task<(bool Success, ClientOperationType OperationResult)> Upsert<T>(T obj, string category = null)
+        public Task<(bool Success, ClientOperationType OperationResult)> Upsert<T>(T obj, string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
-
-                    var result = ItemExistsAndAvailable(obj, category);
+                    var result = await ItemExistsAndAvailable(obj, partition).ConfigureAwait(false);
 
                     if (!result.IsDeleted && result.Exists)
                     {
-                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
+                        await _db
+                            .WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Update, partition), partition)
+                            .ConfigureAwait(false);
+
                         return (true, ClientOperationType.Update);
                     }
-                    else if(!result.IsDeleted)
+                    else if (!result.IsDeleted)
                     {
-                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
+                        await _db
+                            .WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Create, partition), partition)
+                            .ConfigureAwait(false);
+
                         return (true, ClientOperationType.Create);
                     }
 
@@ -252,17 +209,18 @@ namespace EightBot.Orbit.Client
                 });
         }
 
-        public Task<(bool Success, ClientOperationType OperationResult)> Delete<T>(T obj, string category = null)
+        public Task<(bool Success, ClientOperationType OperationResult)> Delete<T>(T obj, string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var result = ItemExistsAndAvailable(obj, category);
+                    var result = await ItemExistsAndAvailable(obj, partition).ConfigureAwait(false);
+
                     if (!result.IsDeleted && result.Exists)
                     {
-                        var syncCollection = GetSynchronizableTypeCollection<T>();
-                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Delete, category));
+                        await _db.WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Delete, partition), partition);
+
                         return (true, ClientOperationType.Delete);
                     }
 
@@ -270,84 +228,47 @@ namespace EightBot.Orbit.Client
                 });
         }
 
-        public async Task<IEnumerable<string>> GetCategories<T>()
-            where T : class
-        {
-            var rti = _registeredTypes[typeof(T)];
-            var ctn = rti.GetCategoryTypeName();
-
-            var typeCollectionNames =
-                await _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            return _db.GetCollectionNames()
-                                    ?.Where(x => x.StartsWith(ctn, StringComparison.Ordinal) && x.Contains(CategorySeparator))
-                                    ?.Select(x => x.Substring(x.IndexOf(CategorySeparator, StringComparison.Ordinal) + CategorySeparator.Length))
-                                    ?.ToList()
-                                ?? new List<string>();
-                        })
-                    .ConfigureAwait(false);
-
-            //TODO: This could be optimized
-            var latestSyncables = await GetAllLatestSyncQueue<T>().ConfigureAwait(false);
-
-            var syncCategories =
-                await _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var syncCollection = GetSynchronizableTypeCollection<T>();
-
-                            return syncCollection
-                                    .Find(Query.And(
-                                        Query.Not(SynchronizableCategory, null),
-                                        Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>())))
-                                    .GroupBy(x => x.Category)
-                                    .Select(x => x.Key)
-                                    .ToList();
-                        })
-                    .ConfigureAwait(false);
-
-            return syncCategories?.Any() ?? false
-                ? typeCollectionNames.Union(syncCategories)
-                : typeCollectionNames;
-        }
-
-        public Task<List<T>> GetAllOf<T> (string category = null)
+        public Task<IEnumerable<T>> GetAllOf<T> (string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
                 () =>
                 {
-                    var typeCollection = GetTypeCollection<T>(category);
-
-                    return typeCollection.FindAll().ToList();
+                    return _db.ReadObjectsAsync<T>(partition).AsTask();
                 });
         }
 
-        public async Task<IEnumerable<T>> GetAllLatest<T>(string category = null)
+        public async Task<IEnumerable<T>> GetAllLatest<T>(string partition = null)
             where T : class
         {
-            var allOfType = await GetAllOf<T>(category).ConfigureAwait(false);
+            var allOfType = new List<T>(await GetAllOf<T>(partition).ConfigureAwait(false));
 
-            var latestSyncables = await GetAllLatestSyncQueue<T>(category).ConfigureAwait(false);
+            var latestSyncables = await GetAllLatestSyncQueue<T>(partition).ConfigureAwait(false);
 
-            var rti = _registeredTypes[typeof(T)];
+            var rti = _db.GetRegisteredTypeInformationFor<T>();
 
-            for (int i = 0; i < latestSyncables.Count; i++)
+            var matchedIndexes = new List<int>();
+
+            for (int i = 0; i < latestSyncables.Count(); i++)
             {
-                var latest = latestSyncables[i];
+                var latest = latestSyncables.ElementAt(i);
 
-                var id = rti.GetId(latest);
+                var index = -1;
 
-                var index = allOfType
-                    .FindIndex(
-                        x =>
-                        {
-                            var itemId = rti.GetId(x);
-                            return itemId == id;
-                        });
+                for (int allOfTypeIndex = 0; allOfTypeIndex < allOfType.Count; allOfTypeIndex++)
+                {
+                    if(matchedIndexes.Contains(allOfTypeIndex))
+                    {
+                        continue;
+                    }
+
+                    if (rti.CompareIdsFor(latest, allOfType[allOfTypeIndex]))
+                    {
+                        matchedIndexes.Add(allOfTypeIndex);
+                        index = allOfTypeIndex;
+                        break;
+                    }
+                }
 
                 if (index >= 0)
                 {
@@ -362,186 +283,153 @@ namespace EightBot.Orbit.Client
             return allOfType;
         }
 
-        public Task<T> GetLatest<T>(T obj, string category = null)
+        public async Task<T> GetLatest<T>(object key, string partition = null)
             where T : class
         {
-            var rti = _registeredTypes[typeof(T)];
+            var syncQueueItem = await GetLatestSyncQueue<T>(key, partition).ConfigureAwait(false);
 
-            var id = rti.GetId(obj);
+            if (syncQueueItem == null)
+            {
+                return await _db.ReadObjectAsync<T>(key, partition).ConfigureAwait(false);
+            }
 
-            return GetLatestInternal<T>(id, category);
+            if (syncQueueItem.Operation == ClientOperationType.Delete)
+            {
+                return default(T);
+            }
+
+            return syncQueueItem.Value;
         }
 
-        public Task<T> GetLatest<T, TId>(TId id, string category = null)
+        public async Task<T> GetLatest<T>(T obj, string partition = null)
             where T : class
         {
-            return GetLatestInternal<T>(new BsonValue(id), category);
+            var syncQueueItem = await GetLatestSyncQueue(obj, partition).ConfigureAwait(false);
+
+            if(syncQueueItem == null)
+            {
+                return await _db.ReadObjectAsync<T>(obj, partition).ConfigureAwait(false);
+            }
+
+            if(syncQueueItem.Operation == ClientOperationType.Delete)
+            {
+                return default(T);
+            }
+
+            return syncQueueItem.Value;
         }
 
-        private Task<T> GetLatestInternal<T>(BsonValue id, string category = null)
-            where T : class
-        {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
-
-                    var cacheable =
-                        syncCollection
-                            .FindOne(
-                                Query.And(
-                                    Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
-                                    GetItemQueryWithId<T>(id, category)));
-
-                    if (cacheable != null)
-                        return cacheable.Value;
-
-                    var typeCollection = GetTypeCollection<T>(category);
-
-                    return typeCollection.FindById(id);
-                });
-        }
-
-        public Task<List<T>> GetAllLatestSyncQueue<T>(string category = null)
+        public Task<IEnumerable<T>> GetAllLatestSyncQueue<T>(string partition = null)
             where T: class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
-
-                    return syncCollection
-                        .Find(GetItemQuery<T>(category))
-                        ?.ToList()
+                    return
+                        (await _db.ReadObjectsAsync<Synchronizable<T>>(partition).ConfigureAwait(false))
                         ?.OrderByDescending(x => x.ModifiedTimestamp)
                         ?.GroupBy(x => x.TypeId)
-                        ?.Where(x => !x.Any(i => i.Operation == (int)ClientOperationType.Delete))
+                        ?.Where(x => !x.Any(i => i.Operation == ClientOperationType.Delete))
                         ?.Select(x => x.First().Value)
-                        ?.ToList()
-                        ?? new List<T>();
+                        ?.ToArray()
+                        ?? Enumerable.Empty<T>();
                 });
         }
 
-        public async Task<bool> PopulateCache<T>(IEnumerable<T> items, string category = null, bool terminateSyncQueueHistory = false)
+        public async Task<bool> PopulateCache<T>(IEnumerable<T> items, string partition = null, bool terminateSyncQueueHistory = false)
             where T : class
         {
-            if(!(await DropCache<T>(category).ConfigureAwait(false)))
+            await DeleteCacheItems<T>(partition).ConfigureAwait(false);
+
+            if (terminateSyncQueueHistory)
             {
-                return false;
+                await TerminateSyncQueueHistory<T>(partition).ConfigureAwait(false);
             }
 
-            if (terminateSyncQueueHistory && !(await TerminateSyncQueueHistory<T>(category).ConfigureAwait(false)))
-                return false;
-
             return await _processingQueue
-                .Queue(
-                    () =>
-                    {
-                        var typeCollection = GetTypeCollection<T>(category);
-
-                        return typeCollection.Upsert(items) == items.Count();
-                    })
+                .Queue(() => _db.WriteObjectsAsync(items, partition).AsTask())
                 .ConfigureAwait(false);
-
         }
 
-        public Task<bool> DropCache<T>(string category = null)
+        public Task<bool> DeleteCacheItem<T>(T item, string partition = null)
+            where T : class
         {
             return _processingQueue.Queue(
                 () =>
                 {
-                    var rti = _registeredTypes[typeof(T)];
-                    var ctn = rti.GetCategoryTypeName(category);
+                    var rti = _db.GetRegisteredTypeInformationFor<T>();
 
-                    var typeCollection = GetTypeCollection<T> (category);
-
-                    if (!_db.CollectionExists(ctn))
-                        return true;
-
-                    return _db.DropCollection(ctn);
+                    return _db.DeleteObjectAsync<T>(rti.GetIdFor<T>(item), partition).AsTask();
                 });
         }
 
-        public Task<bool> DeleteCacheItem<T>(T item, string category = null)
+        public Task<bool> DeleteCacheItems<T>(string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var typeCollection = GetTypeCollection<T>(category);
-
-                    return typeCollection.Delete(GetId (item));
+                    var result = await _db.DeleteObjectsAsync<T>(partition).ConfigureAwait(false);
+                    return result >= 0;
                 });
         }
 
-        public Task<bool> UpsertCacheItem<T>(T item, string category = null)
+        public Task<bool> UpsertCacheItem<T>(T item, string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
                 () =>
                 {
-                    var typeCollection = GetTypeCollection<T>(category);
-
-                    return typeCollection.Upsert(item);
+                    return _db.WriteObjectAsync(item, partition).AsTask();
                 });
         }
 
-        public Task<bool> UpsertCacheItems<T> (IEnumerable<T> items, string category = null)
+        public Task<bool> UpsertCacheItems<T> (IEnumerable<T> items, string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
                 () =>
                 {
-                    var typeCollection = GetTypeCollection<T>(category);
-
-                    return typeCollection.Upsert(items) == items.Count();
+                    return _db.WriteObjectsAsync(items, partition).AsTask();
                 });
         }
 
-        public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(T obj, string category = null)
-            where T : class
-        {
-            var id = GetId(obj);
-            return GetSyncHistoryInternal<T>(id, category);
-        }
-
-        private Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistoryInternal<T>(BsonValue id, string category = null)
+        public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(T obj, string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+                    var items =
+                        await _db
+                            .ReadObjectsAsync<Synchronizable<T>>(
+                                partition,
+                                GetSynchronizableItemFilter<T>(obj))
+                            .ConfigureAwait(false);
 
-                    var cacheables =
-                        syncCollection
-                            .Find(
-                                Query.And(
-                                    Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
-                                    GetItemQueryWithId<T>(id, category)))
-                            ?.ToList();
-
-                    return
-                        cacheables
-                            ?.Select(x => GetAsClientSyncInfo(x))
-                            ?.ToList()
+                    return items
+                        ?.OrderByDescending(x => x.ModifiedTimestamp)
+                        ?.Select(x => GetAsClientSyncInfo(x))
+                        ?.ToArray()
                         ?? Enumerable.Empty<ClientSyncInfo<T>>();
                 });
         }
 
-        public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(SyncType syncType = SyncType.Latest, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
+        public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(SyncType syncType = SyncType.Latest, string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+                    var items =
+                        await _db
+                            .ReadObjectsAsync(partition, GetSynchronizableItemFilter<T>())
+                            .ConfigureAwait(false);
 
                     switch (syncType)
                     {
                         case SyncType.Latest:
-                            return syncCollection
-                                .Find(GetItemQuery<T>(category, categorySearch))
+                            return items
                                 ?.OrderByDescending(x => x.ModifiedTimestamp)
                                 ?.GroupBy(x => x.TypeId)
                                 ?.Where(x => x?.Any() ?? false)
@@ -555,11 +443,10 @@ namespace EightBot.Orbit.Client
                                                 : default;
                                     })
                                 ?.Where (x => x != default)
-                                ?.ToList()
+                                ?.ToArray()
                                 ?? Enumerable.Empty<ClientSyncInfo<T>>();
                         case SyncType.FullHistory:
-                            return syncCollection
-                                .Find(GetItemQuery<T>(category, categorySearch))
+                            return items
                                 ?.Where(x => x != default)
                                 ?.OrderBy(x => x.ModifiedTimestamp)
                                 ?.Select(x => GetAsClientSyncInfo(x))
@@ -571,141 +458,149 @@ namespace EightBot.Orbit.Client
                 });
         }
 
-        public Task<int> GetSyncHistoryCount<T>(SyncType syncType = SyncType.Latest, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
+        public async Task<bool> ReplaceSyncQueueHistory<T>(T obj, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
-
-                    switch (syncType)
-                    {
-                        case SyncType.Latest:
-                            return syncCollection
-                                .Count(GetItemQuery<T>(category, categorySearch));
-                        case SyncType.FullHistory:
-                            return syncCollection
-                                .Count(GetItemQuery<T>(category, categorySearch));
-                    }
-
-                    return 0;
-                });
-        }
-
-        public async Task<bool> ReplaceSyncQueueHistory<T>(T obj, string category = null)
-            where T : class
-        {
-            if (!(await TerminateSyncQueueHistory(obj, category).ConfigureAwait(false)))
+            if (!(await TerminateSyncQueueHistoryFor(obj, partition).ConfigureAwait(false)))
                 return false;
 
-            return (await Create(obj, category).ConfigureAwait(false)).Success;
+            return (await Create(obj, partition).ConfigureAwait(false)).Success;
         }
 
-        public Task<bool> TerminateSyncQueueHistory<T>(T obj, string category = null)
+        public Task<bool> TerminateSyncQueueHistoryFor<T>(T obj, string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+                    var result =
+                        await _db
+                            .DeleteObjectsAsync(
+                                partition,
+                                GetSynchronizableItemFilter<T>(obj))
+                            .ConfigureAwait(false);
 
-                    return syncCollection.Delete(GetItemQuery(obj, category)) > 0;
+                    return result >= 0;
                 });
         }
 
-        public Task<bool> TerminateSyncQueueHistories<T> (IEnumerable<T> objs, string category = null)
+        public Task<bool> TerminateSyncQueueHistoriesFor<T> (IEnumerable<T> objs, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            var objsArray = objs as T[] ?? objs.ToArray();
 
+            return _processingQueue.Queue(
+                async () =>
+                {
                     var deletions = 0;
-                    foreach (var obj in objs)
+
+                    foreach (var obj in objsArray)
                     {
-                        deletions += syncCollection.Delete(GetItemQuery(obj, category));
+                        var deleteResult =
+                            await _db
+                            .DeleteObjectsAsync(
+                                partition,
+                                GetSynchronizableItemFilter<T>(obj))
+                            .ConfigureAwait(false);
+
+                        deletions += deleteResult > 0 ? 1 : 0;
                     }
 
-                    return deletions == objs.Count();
+                    return deletions == objsArray.Length;
                 });
         }
 
-        public Task<bool> TerminateSyncQueueHistory<T>(string category = null)
+        public Task<bool> TerminateSyncQueueHistory<T>(string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+                    var result =
+                        await _db
+                            .DeleteObjectsAsync(
+                                partition,
+                                FilterBuilder<Synchronizable<T>>
+                                    .Create()
+                                    .Filter(FilterType.Equals, x => x.Partition, partition))
+                            .ConfigureAwait(false);
 
-                    return syncCollection.Delete(GetItemQuery<T>(category)) > 0;
+                    return result >= 0;
                 });
         }
 
-        public Task<bool> TerminateSyncQueueHistoryAt<T>(T obj, DateTimeOffset offset, string category = null)
+        public Task<bool> TerminateSyncQueueHistoryAt<T>(T obj, DateTimeOffset offset, string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+                    var result =
+                        await _db
+                            .DeleteObjectsAsync(
+                                partition,
+                                GetSynchronizableItemFilter<T>(obj)
+                                    .And()
+                                    .Filter(FilterType.Equals, x => x.ModifiedTimestamp, offset.ToUnixTimeMilliseconds()))
+                            .ConfigureAwait(false);
 
-                    return syncCollection
-                        .Delete(
-                            Query.And(
-                                GetItemQuery(obj, category),
-                                Query.EQ(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
+                    return result >= 0;
                 });
         }
 
-        public Task<bool> TerminateSyncQueueHistoryBefore<T>(T obj, DateTimeOffset offset, string category = null)
+        public Task<bool> TerminateSyncQueueHistoryBefore<T>(T obj, DateTimeOffset offset, string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+                    var result =
+                        await _db
+                            .DeleteObjectsAsync(
+                                partition,
+                                GetSynchronizableItemFilter<T>(obj)
+                                    .And()
+                                    .Filter(FilterType.LessThan, x => x.ModifiedTimestamp, offset.ToUnixTimeMilliseconds()))
+                            .ConfigureAwait(false);
 
-                    return syncCollection
-                        .Delete(
-                            Query.And(
-                                GetItemQuery(obj, category),
-                                Query.LT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
+                    return result >= 0;
                 });
         }
 
-        public Task<bool> TerminateSyncQueueHistoryAfter<T>(T obj, DateTimeOffset offset, string category = null)
+        public Task<bool> TerminateSyncQueueHistoryAfter<T>(T obj, DateTimeOffset offset, string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+                    var result =
+                        await _db
+                            .DeleteObjectsAsync(
+                                partition,
+                                GetSynchronizableItemFilter<T>(obj)
+                                    .And()
+                                    .Filter(FilterType.GreaterThan, x => x.ModifiedTimestamp, offset.ToUnixTimeMilliseconds()))
+                            .ConfigureAwait(false);
 
-                    return syncCollection
-                        .Delete(
-                            Query.And(
-                                GetItemQuery(obj, category),
-                                Query.GT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
+                    return result >= 0;
                 });
         }
 
-        public async Task Reconcile<T> (IEnumerable<ServerSyncInfo<T>> serverSyncInformation, string category = null)
+        public async Task Reconcile<T> (IEnumerable<ServerSyncInfo<T>> serverSyncInformation, string partition = null)
             where T : class
         {
-            var latest = await GetSyncHistory<T> (SyncType.Latest, category).ConfigureAwait (false);
+            var latest = await GetSyncHistory<T> (SyncType.Latest, partition).ConfigureAwait (false);
 
             var replacements = new List<T> ();
             var inserts = new List<T> ();
+
+            var rti = _db.GetRegisteredTypeInformationFor<T>();
 
             if (latest.Any ())
             {
                 foreach (var serverSyncInfo in serverSyncInformation)
                 {
-                    var serverItemId = GetId (serverSyncInfo.Value);
-                    var latestClientUpdate = latest.FirstOrDefault (x => GetId (x.Value).Equals (serverItemId));
+                    var latestClientUpdate = latest.FirstOrDefault (x => rti.CompareIdsFor(serverSyncInfo.Value, x.Value));
 
                     if (latestClientUpdate != null)
                     {
@@ -718,96 +613,129 @@ namespace EightBot.Orbit.Client
             }
             else
             {
-                inserts.AddRange (serverSyncInformation.Select (x => x.Value).ToList ());
+                inserts.AddRange (serverSyncInformation.Select (x => x.Value));
             }
 
             if (replacements.Any ())
             {
-                await TerminateSyncQueueHistories (replacements, category).ConfigureAwait (false);
-                await UpsertCacheItems (replacements, category).ConfigureAwait (false);
+                await TerminateSyncQueueHistoriesFor(replacements, partition).ConfigureAwait (false);
+                await UpsertCacheItems (replacements, partition).ConfigureAwait (false);
             }
 
             if (inserts.Any ())
             {
-                await UpsertCacheItems (inserts, category).ConfigureAwait (false);
+                await UpsertCacheItems (inserts, partition).ConfigureAwait (false);
             }
-
-            await CleanUp ().ConfigureAwait (false);
         }
 
-        private (bool IsDeleted, bool Exists) ItemExistsAndAvailable<T>(T obj, string category = null)
+        private async Task<(bool IsDeleted, bool Exists)> ItemExistsAndAvailable<T>(T obj, string partition = null)
             where T : class
         {
-            var id = GetId(obj);
-            return ItemExistsAndAvailableWithId<T>(id, category);
-        }
+            var synchObjects =
+                await _db
+                    .ReadObjectsAsync<Synchronizable<T>>(
+                        partition,
+                        GetSynchronizableItemFilter<T>(obj))
+                    .ConfigureAwait(false);
 
-        private (bool IsDeleted, bool Exists) ItemExistsAndAvailableWithId<T>(BsonValue id, string category = null)
-            where T : class
-        {
-            var syncCollection = GetSynchronizableTypeCollection<T>();
+            var latestObject = synchObjects?.OrderByDescending(x => x.ModifiedTimestamp)?.FirstOrDefault();
 
-            var deleted =
-                syncCollection
-                    .Count(
-                        Query.And(
-                            Query.EQ(SynchronizableOperationIndex, (int)ClientOperationType.Delete),
-                            GetItemQueryWithId<T>(id, category)));
-
-            var count = syncCollection.Count(GetItemQueryWithId<T>(id, category));
-
-            if(count == 0)
+            if(latestObject != null)
             {
-                var typeItems = GetTypeCollection<T>(category);
-                count = typeItems.FindById(id) != default(T) ? 1 : 0;
+                return (latestObject?.Operation == ClientOperationType.Delete, true);
             }
 
-            return (deleted > 0, count > 0);
+            var cachedObject =
+                await _db
+                    .ReadObjectAsync<T>(obj, partition)
+                    .ConfigureAwait(false);
+
+            return (false, cachedObject != null);
         }
 
-        private Task<Synchronizable<T>> GetLatestSyncQueue<T>(BsonValue id, string category = null)
+        private Task<Synchronizable<T>> GetLatestSyncQueue<T>(T obj, string partition = null)
             where T : class
         {
             return _processingQueue.Queue(
-                () =>
+                async () =>
                 {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+                    var synchObjects =
+                        await _db
+                            .ReadObjectsAsync<Synchronizable<T>>(
+                                partition,
+                                GetSynchronizableItemFilter<T>(obj))
+                            .ConfigureAwait(false);
 
-                    var cacheable =
-                        syncCollection
-                            .FindOne(
-                                Query.And(
-                                    Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
-                                    GetItemQueryWithId<T>(id, category)));
-
-                    return cacheable;
+                    return synchObjects?.OrderByDescending(x => x.ModifiedTimestamp)?.FirstOrDefault();
                 });
         }
 
-        private Synchronizable<T> GetAsSynchronizable<T>(T obj, ClientOperationType operationType, string category = null)
+        private Task<Synchronizable<T>> GetLatestSyncQueue<T>(object key, string partition = null)
             where T : class
         {
-            var rti = _registeredTypes[typeof(T)];
+            return _processingQueue.Queue(
+                async () =>
+                {
+                    var synchObjects =
+                        await _db
+                            .ReadObjectsAsync<Synchronizable<T>>(
+                                partition,
+                                GetSynchronizableItemFilter<T>(key))
+                            .ConfigureAwait(false);
 
-            var typeId = rti.GetId(obj);
+                    return synchObjects?.OrderByDescending(x => x.ModifiedTimestamp)?.FirstOrDefault();
+                });
+        }
 
-            if (typeId == null || typeId == BsonValue.Null)
-            {
-                throw new Exception("All cachable objects need to have a non-null value for the Id");
-            }
+        private Synchronizable<T> GetAsSynchronizable<T>(T obj, ClientOperationType operationType, string partition = null)
+            where T : class
+        {
+            var rti = _db.GetRegisteredTypeInformationFor<T>();
 
             var now = DateTimeOffset.Now;
 
             return new Synchronizable<T>
             {
-                Id = ObjectId.NewObjectId(),
-                Category = category,
-                TypeId = typeId,
-                TypeName = rti.TypeFullName,
+                Id = Guid.NewGuid(),
+                TypeId = rti.GetIdFor(obj),
+                Partition = partition,
+                TypeFullName = rti.TypeFullName,
                 Value = obj,
                 ModifiedTimestamp = now.ToUnixTimeMilliseconds(),
-                Operation = (int)operationType
+                Operation = operationType
             };
+        }
+
+        private FilterBuilder<Synchronizable<T>> GetSynchronizableItemFilter<T>()
+        {
+            var rti = _db.GetRegisteredTypeInformationFor<T>();
+
+            var fb = FilterBuilder<Synchronizable<T>>
+                .Create();
+
+            return fb;
+        }
+
+        private FilterBuilder<Synchronizable<T>> GetSynchronizableItemFilter<T>(T obj)
+        {
+            var rti = _db.GetRegisteredTypeInformationFor<T>();
+
+            var fb = FilterBuilder<Synchronizable<T>>
+                .Create()
+                .Filter(FilterType.Equals, x => x.TypeId, rti.GetIdFor(obj));
+
+            return fb;
+        }
+
+        private FilterBuilder<Synchronizable<T>> GetSynchronizableItemFilter<T>(object key)
+        {
+            var rti = _db.GetRegisteredTypeInformationFor<T>();
+
+            var fb = FilterBuilder<Synchronizable<T>>
+                .Create()
+                .Filter(FilterType.Equals, x => x.TypeId, key);
+
+            return fb;
         }
 
         private ClientSyncInfo<T> GetAsClientSyncInfo<T>(Synchronizable<T> synchronizable)
@@ -815,123 +743,33 @@ namespace EightBot.Orbit.Client
             return new ClientSyncInfo<T>
             {
                 ModifiedOn = synchronizable.ModifiedTimestamp,
-                Operation = (ClientOperationType)synchronizable.Operation,
-                Category = synchronizable.Category,
+                Operation = synchronizable.Operation,
+                Partition = synchronizable.Partition,
                 Value = synchronizable.Value
             };
         }
 
-        private Query GetItemQuery<T>(T obj, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
-            where T : class
+        protected virtual void Dispose(bool disposing)
         {
-            var id = GetId<T>(obj);
-            return GetItemQueryWithId<T>(id, category, categorySearch);
-        }
-
-        private Query GetItemQuery<T>(string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
-            where T : class
-        {
-            return
-                categorySearch ==
-                    CategorySearch.StartsWith
-                        ? Query.And(
-                            Query.StartsWith(SynchronizableCategory, category),
-                            Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
-                        : categorySearch == CategorySearch.Contains
-                            ? Query.And(
-                                Query.Contains(SynchronizableCategory, category),
-                                Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
-                            : category != null
-                                ? Query.And(
-                                    Query.EQ(SynchronizableCategory, category),
-                                    Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
-                                : Query.And(
-                                    Query.EQ(SynchronizableCategory, BsonValue.Null),
-                                    Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()));
-        }
-
-        private Query GetItemQueryWithId<T>(BsonValue id, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
-            where T : class
-        {
-            return
-                categorySearch == CategorySearch.StartsWith
-                    ? Query.And(
-                        Query.EQ(SynchronizableTypeIdIndex, id),
-                        Query.StartsWith(SynchronizableCategory, category),
-                        Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
-                    : categorySearch == CategorySearch.Contains
-                        ? Query.And(
-                            Query.EQ(SynchronizableTypeIdIndex, id),
-                            Query.Contains(SynchronizableCategory, category),
-                            Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
-                        : category != null
-                            ? Query.And(
-                                Query.EQ(SynchronizableTypeIdIndex, id),
-                                Query.EQ(SynchronizableCategory, category),
-                                Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()))
-                            : Query.And(
-                                Query.EQ(SynchronizableTypeIdIndex, id),
-                                Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>()));
-        }
-
-        private BsonValue GetId<T>(T obj)
-            where T : class
-        {
-            var rti = _registeredTypes[typeof(T)];
-
-            return rti.GetId(obj);
-        }
-
-        private string GetTypeFullName<T>()
-        {
-            var rti = _registeredTypes[typeof(T)];
-
-            return rti.TypeFullName;
-        }
-
-        private LiteCollection<Synchronizable<T>> GetSynchronizableTypeCollection<T>()
-        {
-            return _db.GetCollection<Synchronizable<T>>(SyncCollection);
-        }
-
-        private LiteCollection<T> GetTypeCollection<T>(string category = null)
-        {
-            return Retry (
-                () =>
+            if (!disposedValue)
+            {
+                if (disposing)
                 {
-                    var rti = _registeredTypes[typeof(T)];
-                    var ctn = rti.GetCategoryTypeName(category);
+                    _db?.Disconnect();
+                    _db?.Dispose();
+                }
 
-                    if (!_db.CollectionExists(ctn))
-                    {
-                        var collection =
-                            !string.IsNullOrEmpty(ctn)
-                                ? _db.GetCollection<T>(ctn)
-                                : _db.GetCollection<T>();
-
-                        if(!string.IsNullOrEmpty(rti.IdProperty))
-                        {
-                            collection.EnsureIndex(rti.IdProperty);
-                        }
-
-                        return collection;
-                    }
-
-                    return _db.GetCollection<T>(ctn);
-                },
-                3);
+                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+                // TODO: set large fields to null
+                disposedValue = true;
+            }
         }
 
-        private T Retry<T> (Func<T> action, int retryCount)
+        public void Dispose()
         {
-            try
-            {
-                return action ();
-            }
-            catch when (retryCount != 0)
-            {
-                return Retry (action, --retryCount);
-            }
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }

@@ -1,23 +1,23 @@
 ﻿using System;
-using LiteDB;
+
 namespace EightBot.Orbit.Client
 {
     internal class Synchronizable<T>
     {
-        public ObjectId Id { get; set; }
+        public Guid Id { get; set; }
 
-        public string Category { get; set; }
+        public object TypeId { get; set; }
 
-        public string TypeName { get; set; }
+        public string TypeFullName { get; set; }
+
+        public string Partition { get; set; }
 
         public long ModifiedTimestamp { get; set; }
 
         public long? SyncTimestamp { get; set; }
 
-        public BsonValue TypeId { get; set; }
-
         public T Value { get; set; }
 
-        public int Operation { get; set; }
+        public ClientOperationType Operation { get; set; }
     }
 }

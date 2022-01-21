@@ -12,6 +12,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 
+[assembly: Parallelize(Workers = 1, Scope = ExecutionScope.ClassLevel)]
 namespace EightBot.Orbit.Tests
 {
     [TestClass]
@@ -33,19 +34,19 @@ namespace EightBot.Orbit.Tests
         {
             _client =
                 new OrbitClient()
-                    .Initialize(_tempDbFile, additionalConnectionStringParameters: "Mode=Exclusive;", deleteExistingCache: true)
-                    .AddTypeRegistration<TestClassA, string>(x => x.StringProperty, requiresIdMapping: true)
-                    .AddTypeRegistration<TestClassB, string>(x => x.StringProperty, requiresIdMapping: true)
-                    .AddTypeRegistration<TestClassC, int>(x => x.IntProperty, requiresIdMapping: true)
-                    .AddTypeRegistration<TestClassD, string, float>(x => x.FloatProperty.ToString(), x => x.FloatProperty, requiresIdMapping: true)
-                    .AddTypeRegistration<TestClassE, Guid>(x => x.TestClassId, requiresIdMapping: true)
-                    .AddTypeRegistration<string>();
+                    .Initialize(_tempDbFile, deleteExistingCache: true)
+                    .AddTypeRegistration<TestClassA, string>(x => x.StringProperty)
+                    .AddTypeRegistration<TestClassB, string>(x => x.StringProperty)
+                    .AddTypeRegistration<TestClassC, int>(x => x.IntProperty)
+                    .AddTypeRegistration<TestClassE, Guid>(x => x.TestClassId)
+                    .AddTypeRegistrationWithCustomKeySelector<TestClassD>(x => $"{x.FloatProperty}_{x.DoubleProperty}")
+                    .AddTypeRegistrationWithCustomKeySelector<string>(x => x);
         }
 
         [TestCleanup]
         public void Shutdown()
         {
-            _client.Shutdown();
+            _client.Dispose();
 
             File.Delete(_client.CachePath);
         }
@@ -102,7 +103,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public async Task OrbitClient_CreateWithCategory_ShouldBeSuccessful()
+        public async Task OrbitClient_CreateWithPartition_ShouldBeSuccessful()
         {
             var testFile =
                 new TestClassA
@@ -111,7 +112,7 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 42
                 };
 
-            var result = await _client.Create(testFile, "category");
+            var result = await _client.Create(testFile, "partition");
 
             result.Success
                 .Should()
@@ -160,7 +161,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public async Task OrbitClient_CreateWithObjectThatUsesFuncPropertyWithCategory_ShouldBeSuccessful()
+        public async Task OrbitClient_CreateWithObjectThatUsesFuncPropertyWithPartition_ShouldBeSuccessful()
         {
             var testFile =
                 new TestClassD
@@ -169,7 +170,7 @@ namespace EightBot.Orbit.Tests
                     DoubleProperty = 42d
                 };
 
-            var result = await _client.Create(testFile, "category");
+            var result = await _client.Create(testFile, "partition");
 
             result.Success
                 .Should()
@@ -211,9 +212,9 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public async Task OrbitClient_InsertToCacheWithCategoryAndGetLatest_ShouldFindMatch()
+        public async Task OrbitClient_InsertToCacheWithPartitionAndGetLatest_ShouldFindMatch()
         {
-            var category = "category";
+            var partition = "partition";
 
             var testFile =
                 new TestClassA
@@ -222,8 +223,8 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 42
                 };
 
-            await _client.UpsertCacheItem(testFile, category);
-            var found = await _client.GetLatest(testFile, category);
+            await _client.UpsertCacheItem(testFile, partition);
+            var found = await _client.GetLatest(testFile, partition);
             Assert.IsTrue(testFile.IntProperty == found.IntProperty);
         }
 
@@ -243,9 +244,9 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public async Task OrbitClient_InsertTestClassEToCacheWithCategoryAndGetLatest_ShouldFindMatch()
+        public async Task OrbitClient_InsertTestClassEToCacheWithPartitionAndGetLatest_ShouldFindMatch()
         {
-            var category = "category";
+            var partition = "partition";
 
             var testFile =
                 new TestClassE
@@ -254,8 +255,8 @@ namespace EightBot.Orbit.Tests
                     Values = new List<TestClassD> { },
                 };
 
-            await _client.UpsertCacheItem(testFile, category);
-            var found = await _client.GetLatest(testFile, category);
+            await _client.UpsertCacheItem(testFile, partition);
+            var found = await _client.GetLatest(testFile, partition);
             Assert.IsTrue(testFile.TestClassId == found.TestClassId);
         }
 
@@ -270,9 +271,9 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public async Task OrbitClient_InsertAndGetLatestWithCategory_ShouldFindMatch()
+        public async Task OrbitClient_InsertAndGetLatestWithPartition_ShouldFindMatch()
         {
-            var category = "category";
+            var partition = "partition";
 
             var testFile =
                 new TestClassA
@@ -281,8 +282,8 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 42
                 };
 
-            await _client.Create(testFile, category);
-            var found = await _client.GetLatest(testFile, category);
+            await _client.Create(testFile, partition);
+            var found = await _client.GetLatest(testFile, partition);
             Assert.IsTrue(testFile.IntProperty == found.IntProperty);
         }
 
@@ -302,9 +303,9 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public async Task OrbitClient_InsertWithObjectThatUsesFuncPropertyAndGetLatestWithCategory_ShouldFindMatch()
+        public async Task OrbitClient_InsertWithObjectThatUsesFuncPropertyAndGetLatestWithPartition_ShouldFindMatch()
         {
-            var category = "category";
+            var partition = "partition";
 
             var testFile =
                 new TestClassD
@@ -313,8 +314,8 @@ namespace EightBot.Orbit.Tests
                     DoubleProperty = 42d
                 };
 
-            await _client.Create(testFile, category);
-            var found = await _client.GetLatest(testFile, category);
+            await _client.Create(testFile, partition);
+            var found = await _client.GetLatest(testFile, partition);
             Assert.IsTrue(testFile.FloatProperty == found.FloatProperty);
         }
 
@@ -344,11 +345,11 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public async Task OrbitClient_InsertMultipleAndGetAllWithCategory_CountShouldMatch()
+        public async Task OrbitClient_InsertMultipleAndGetAllWithPartition_CountShouldMatch()
         {
             var expected = 2;
 
-            var category = "category";
+            var partition = "partition";
 
             var testFile1 =
                 new TestClassA
@@ -364,9 +365,9 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 84
                 };
 
-            await _client.Create(testFile1, category);
-            await _client.Update(testFile2, category);
-            var found = await _client.GetSyncHistory<TestClassA>(testFile1, category);
+            var createResult = await _client.Create(testFile1, partition);
+            var updateResult = await _client.Update(testFile2, partition);
+            var found = await _client.GetSyncHistory<TestClassA>(testFile1, partition);
             Assert.IsTrue(found.Count() == expected);
         }
 
@@ -430,9 +431,9 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public async Task OrbitClient_InsertMultipleAndQueryWithCategory_DoesGetLatest()
+        public async Task OrbitClient_InsertMultipleAndQueryWithPartition_DoesGetLatest()
         {
-            var category = "category";
+            var partition = "partition";
 
             var testFile1 =
                 new TestClassA
@@ -455,11 +456,11 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 168
                 };
 
-            await _client.Upsert(testFile1, category);
-            await _client.Upsert(testFile2, category);
-            await _client.Upsert(testFile3, category);
+            await _client.Upsert(testFile1, partition);
+            await _client.Upsert(testFile2, partition);
+            await _client.Upsert(testFile3, partition);
 
-            var found = await _client.GetLatest(testFile3, category);
+            var found = await _client.GetLatest(testFile3, partition);
 
             Assert.IsTrue(found.IntProperty == testFile3.IntProperty);
         }
@@ -520,9 +521,9 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public async Task OrbitClient_InsertAndDeleteAndInsertWithCategory_ShouldNotInsert()
+        public async Task OrbitClient_InsertAndDeleteAndInsertWithPartition_ShouldNotInsert()
         {
-            var category = "category";
+            var partition = "partition";
 
             var testFile1 =
                 new TestClassA
@@ -545,7 +546,7 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 168
                 };
 
-            var upsert1Result = await _client.Upsert(testFile1, category);
+            var upsert1Result = await _client.Upsert(testFile1, partition);
 
             upsert1Result.Success
                 .Should()
@@ -555,7 +556,7 @@ namespace EightBot.Orbit.Tests
                 .Should()
                 .Be(ClientOperationType.Create);
 
-            var deleteResult =await _client.Delete(testFile2, category);
+            var deleteResult =await _client.Delete(testFile2, partition);
 
             deleteResult.Success
                 .Should()
@@ -565,7 +566,7 @@ namespace EightBot.Orbit.Tests
                 .Should()
                 .Be(ClientOperationType.Delete);
 
-            var upsert2Result = await _client.Upsert(testFile3, category);
+            var upsert2Result = await _client.Upsert(testFile3, partition);
 
             upsert2Result.Success
                 .Should()
@@ -598,19 +599,19 @@ namespace EightBot.Orbit.Tests
             await _client.Upsert(testFile1);
             await _client.Upsert(testFile2);
 
-            var foundA = await _client.GetLatest<TestClassA, string>(id);
-            var foundB = await _client.GetLatest<TestClassB, string>(id);
+            var foundA = await _client.GetLatest<TestClassA>(id);
+            var foundB = await _client.GetLatest<TestClassB>(id);
 
             Assert.IsTrue(foundA.IntProperty == testFile1.IntProperty);
             Assert.IsTrue(foundB.DoubleProperty == testFile2.DoubleProperty);
         }
 
         [TestMethod]
-        public async Task OrbitClient_InsertMultipleWithSameKeyWithCategory_ShouldFindRightTypes()
+        public async Task OrbitClient_InsertMultipleWithSameKeyWithPartition_ShouldFindRightTypes()
         {
             var id = "Test Value";
 
-            var category = "category";
+            var partition = "partition";
 
             var testFile1 =
                 new TestClassA
@@ -626,11 +627,11 @@ namespace EightBot.Orbit.Tests
                     DoubleProperty = 42d
                 };
 
-            await _client.Upsert(testFile1, category);
-            await _client.Upsert(testFile2, category);
+            await _client.Upsert(testFile1, partition);
+            await _client.Upsert(testFile2, partition);
 
-            var foundA = await _client.GetLatest<TestClassA, string> (id, category);
-            var foundB = await _client.GetLatest<TestClassB, string>(id, category);
+            var foundA = await _client.GetLatest<TestClassA> (id, partition);
+            var foundB = await _client.GetLatest<TestClassB> (id, partition);
 
             Assert.IsTrue(foundA.IntProperty == testFile1.IntProperty);
             Assert.IsTrue(foundB.DoubleProperty == testFile2.DoubleProperty);
@@ -641,7 +642,7 @@ namespace EightBot.Orbit.Tests
         {
             var id = "Test Value";
 
-            var category = "test";
+            var partition = "test";
 
             var testFile1 =
                 new TestClassA
@@ -650,7 +651,7 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 42
                 };
 
-            await _client.Upsert(testFile1, category);
+            await _client.Upsert(testFile1, partition);
 
             var foundA = await _client.GetAllLatestSyncQueue<TestClassA>();
 
@@ -661,7 +662,7 @@ namespace EightBot.Orbit.Tests
         public async Task OrbitClient_GetAllLatest_PerfTest1 ()
         {
 
-            var category = "test";
+            var partition = "test";
 
             var items =
                 Enumerable
@@ -678,10 +679,10 @@ namespace EightBot.Orbit.Tests
                         })
                     .ToList();
 
-            await _client.Reconcile(items, category);
+            await _client.Reconcile(items, partition);
 
             var sw = Stopwatch.StartNew();
-            var foundA = await _client.GetAllLatest<TestClassA>(category);
+            var foundA = await _client.GetAllLatest<TestClassA>(partition);
             sw.Stop();
 
             Console.WriteLine($"GetAllLatest: {sw.ElapsedMilliseconds}ms");
@@ -735,8 +736,8 @@ namespace EightBot.Orbit.Tests
 
                 await Task.WhenAll(insert1Test, insert2Test);
 
-                var found1 = await _client.GetLatest<TestClassA, string>(id1);
-                var found2 = await _client.GetLatest<TestClassA, string>(id2);
+                var found1 = await _client.GetLatest<TestClassA>(id1);
+                var found2 = await _client.GetLatest<TestClassA>(id2);
 
                 Assert.IsNotNull(found1);
                 Assert.IsTrue(found1.IntProperty == max);
@@ -792,7 +793,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public async Task OrbitClient_BulkInsertAndUpdateWithCategory_ShouldGetNewValue()
+        public async Task OrbitClient_BulkInsertAndUpdateWithPartition_ShouldGetNewValue()
         {
 
             var testObjects =
@@ -800,23 +801,23 @@ namespace EightBot.Orbit.Tests
                     .RuleFor(x => x.StringProperty, (f, u) => $"String_{f.IndexFaker}")
                     .RuleFor(x => x.IntProperty, (f, u) => f.IndexFaker);
 
-            var category = "category";
+            var partition = "partition";
 
             var generatedTestObjects = testObjects.GenerateBetween(100, 100);
 
-            var populated = await _client.PopulateCache(generatedTestObjects, category);
+            var populated = await _client.PopulateCache(generatedTestObjects, partition);
 
             Assert.IsTrue(populated);
 
             var original = generatedTestObjects[49];
 
-            var foundObject = await _client.GetLatest<TestClassA>(original, category);
+            var foundObject = await _client.GetLatest<TestClassA>(original, partition);
 
             Assert.AreEqual(foundObject.IntProperty, original.IntProperty);
 
             foundObject.IntProperty = foundObject.IntProperty * 2;
 
-            var upsertResult = await _client.Upsert(foundObject, category);
+            var upsertResult = await _client.Upsert(foundObject, partition);
 
             upsertResult.Success
                 .Should()
@@ -826,7 +827,7 @@ namespace EightBot.Orbit.Tests
                 .Should()
                 .Be(ClientOperationType.Update);
 
-            var latest = await _client.GetAllLatest<TestClassA>(category);
+            var latest = await _client.GetAllLatest<TestClassA>(partition);
 
             var updated = latest.FirstOrDefault(x => x.StringProperty == original.StringProperty);
 
@@ -843,11 +844,11 @@ namespace EightBot.Orbit.Tests
                     .RuleFor (x => x.StringProperty, (f, u) => $"String_{f.IndexFaker}")
                     .RuleFor (x => x.IntProperty, (f, u) => f.IndexFaker);
 
-            var category = "category";
+            var partition = "partition";
 
             var generatedTestObjects = testObjects.GenerateBetween (100, 100);
 
-            var populated = await _client.PopulateCache (generatedTestObjects, category);
+            var populated = await _client.PopulateCache (generatedTestObjects, partition);
 
             Assert.IsTrue (populated);
 
@@ -855,7 +856,7 @@ namespace EightBot.Orbit.Tests
 
             foreach (var generatedTestObject in generatedTestObjects)
             {
-                var deleteResult = await _client.DeleteCacheItem (generatedTestObject, category);
+                var deleteResult = await _client.DeleteCacheItem (generatedTestObject, partition);
 
                 if(deleteResult == true)
                 {
@@ -869,10 +870,10 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
-        public async Task OrbitClient_InsertItemsWithCategories_ShouldGetRightItemForCategory()
+        public async Task OrbitClient_InsertItemsWithCategories_ShouldGetRightItemForPartition()
         {
-            var category1 = "category1";
-            var category2 = "category2";
+            var partition1 = "partition1";
+            var partition2 = "partition2";
 
             var testFile1 =
                 new TestClassA
@@ -888,93 +889,93 @@ namespace EightBot.Orbit.Tests
                     IntProperty = 84
                 };
 
-            await _client.Upsert(testFile1, category1);
-            await _client.Upsert(testFile2, category2);
+            await _client.Upsert(testFile1, partition1);
+            await _client.Upsert(testFile2, partition2);
 
-            var testFile1InCategory2 = await _client.GetLatest<TestClassA>(testFile1, category2);
-            var testFile2InCategory1 = await _client.GetLatest<TestClassA>(testFile2, category1);
+            var testFile1InPartition2 = await _client.GetLatest<TestClassA>(testFile1, partition2);
+            var testFile2InPartition1 = await _client.GetLatest<TestClassA>(testFile2, partition1);
 
-            Assert.IsNull(testFile1InCategory2);
-            Assert.IsNull(testFile2InCategory1);
+            Assert.IsNull(testFile1InPartition2);
+            Assert.IsNull(testFile2InPartition1);
 
-            var testFile1InCategory1 = await _client.GetLatest<TestClassA>(testFile1, category1);
-            var testFile2InCategory2 = await _client.GetLatest<TestClassA>(testFile2, category2);
+            var testFile1InPartition1 = await _client.GetLatest<TestClassA>(testFile1, partition1);
+            var testFile2InPartition2 = await _client.GetLatest<TestClassA>(testFile2, partition2);
 
-            Assert.IsNotNull(testFile1InCategory1);
-            Assert.IsNotNull(testFile2InCategory2);
+            Assert.IsNotNull(testFile1InPartition1);
+            Assert.IsNotNull(testFile2InPartition2);
         }
 
-        [TestMethod]
-        public async Task OrbitClient_InsertItemsWithCategories_ShouldFindCategories()
-        {
-            var category1 = "category1";
-            var category2 = "category2";
+        //[TestMethod]
+        //public async Task OrbitClient_InsertItemsWithCategories_ShouldFindCategories()
+        //{
+        //    var partition1 = "partition1";
+        //    var partition2 = "partition2";
 
-            var expectedCategories = 2;
+        //    var expectedCategories = 2;
 
-            var testFile1 =
-                new TestClassA
-                {
-                    StringProperty = "test1",
-                    IntProperty = 42
-                };
+        //    var testFile1 =
+        //        new TestClassA
+        //        {
+        //            StringProperty = "test1",
+        //            IntProperty = 42
+        //        };
 
-            var testFile2 =
-                new TestClassA
-                {
-                    StringProperty = "test2",
-                    IntProperty = 84
-                };
+        //    var testFile2 =
+        //        new TestClassA
+        //        {
+        //            StringProperty = "test2",
+        //            IntProperty = 84
+        //        };
 
-            await _client.Upsert(testFile1, category1);
-            await _client.Upsert(testFile2, category2);
+        //    await _client.Upsert(testFile1, partition1);
+        //    await _client.Upsert(testFile2, partition2);
 
-            var categories = (await _client.GetCategories<TestClassA>()).ToList();
+        //    var categories = (await _client.GetCategories<TestClassA>()).ToList();
 
-            Assert.IsTrue(categories.Contains(category1));
-            Assert.IsTrue(categories.Contains(category2));
-            Assert.IsTrue(categories.Count == expectedCategories);
-        }
+        //    Assert.IsTrue(categories.Contains(partition1));
+        //    Assert.IsTrue(categories.Contains(partition2));
+        //    Assert.IsTrue(categories.Count == expectedCategories);
+        //}
 
-        [TestMethod]
-        public async Task OrbitClient_PopulateCacheAndInsertItemsWithCategories_ShouldFindCategories()
-        {
-            var category1 = "category1";
-            var category2 = "category2";
+        //[TestMethod]
+        //public async Task OrbitClient_PopulateCacheAndInsertItemsWithCategories_ShouldFindCategories()
+        //{
+        //    var partition1 = "partition1";
+        //    var partition2 = "partition2";
 
-            var expectedCategories = 2;
+        //    var expectedCategories = 2;
 
-            var testFile1 =
-                new TestClassA
-                {
-                    StringProperty = "test1",
-                    IntProperty = 42
-                };
+        //    var testFile1 =
+        //        new TestClassA
+        //        {
+        //            StringProperty = "test1",
+        //            IntProperty = 42
+        //        };
 
-            var testFile2 =
-                new TestClassA
-                {
-                    StringProperty = "test2",
-                    IntProperty = 84
-                };
+        //    var testFile2 =
+        //        new TestClassA
+        //        {
+        //            StringProperty = "test2",
+        //            IntProperty = 84
+        //        };
 
-            await _client.PopulateCache(new[] { testFile1 }, category1);
-            await _client.Upsert(testFile2, category2);
+        //    await _client.PopulateCache(new[] { testFile1 }, partition1);
+        //    await _client.Upsert(testFile2, partition2);
 
-            var categories = (await _client.GetCategories<TestClassA>()).ToList();
+        //    var categories = (await _client.GetCategories<TestClassA>()).ToList();
 
-            Assert.IsTrue(categories.Contains(category1));
-            Assert.IsTrue(categories.Contains(category2));
-            Assert.IsTrue(categories.Count == expectedCategories);
-        }
+        //    Assert.IsTrue(categories.Contains(partition1));
+        //    Assert.IsTrue(categories.Contains(partition2));
+        //    Assert.IsTrue(categories.Count == expectedCategories);
+        //}
 
         //[TestMethod]
         //public async Task OrbitClient_PopulateCacheWithSimpleItems_ShouldPopulate()
         //{
-        //    var category1 = "category1";
-        //    var category2 = "category2";
+        //    var partition1 = "partition1";
+        //    var partition2 = "partition2";
 
-        //    await _client.PopulateCache(new[] { category1, category2 });
+        //    await _client.PopulateCache(new[] { partition1, partition2 });
 
         //    var latest = await _client.GetAllLatest<string>();
 
@@ -992,15 +993,15 @@ namespace EightBot.Orbit.Tests
                     .RuleFor(x => x.IntProperty, (f, u) => index++)
                     .RuleFor(x => x.TimestampMillis, (f, u) => DateTimeOffset.Now.ToUnixTimeMilliseconds());
 
-            var category = "category";
+            var partition = "partition";
 
             var generatedTestObjects = testObjects.GenerateBetween(100, 100);
 
-            var populated = await _client.PopulateCache(generatedTestObjects, category);
+            var populated = await _client.PopulateCache(generatedTestObjects, partition);
 
             for (int i = 0; i < 50; i++)
             {
-                await _client.Upsert(generatedTestObjects[i], category);
+                await _client.Upsert(generatedTestObjects[i], partition);
             }
 
             Assert.IsTrue(populated);
@@ -1018,9 +1019,9 @@ namespace EightBot.Orbit.Tests
                         })
                     .ToList();
 
-            await _client.Reconcile(generatedTestServerObjects, category);
+            await _client.Reconcile(generatedTestServerObjects, partition);
 
-            var latest = await _client.GetAllLatest<TestClassA>(category);
+            var latest = await _client.GetAllLatest<TestClassA>(partition);
 
             foreach (var obj in generatedTestServerObjects)
             {
@@ -1028,10 +1029,10 @@ namespace EightBot.Orbit.Tests
                 Assert.IsTrue(found != default);
             }
 
-            var syncQueue = await _client.GetAllLatestSyncQueue<TestClassA>(category);
+            var syncQueue = await _client.GetAllLatestSyncQueue<TestClassA>(partition);
             Assert.IsTrue(!syncQueue.Any());
 
-            var allLatest = await _client.GetAllLatest<TestClassA>(category);
+            var allLatest = await _client.GetAllLatest<TestClassA>(partition);
             Assert.IsTrue(allLatest.Count() == 100);
         }
 
@@ -1049,9 +1050,9 @@ namespace EightBot.Orbit.Tests
                     .RuleFor (x => x.StringProperty, (f, u) => $"String_{f.IndexFaker}")
                     .RuleFor (x => x.DoubleProperty, (f, u) => f.IndexFaker);
 
-            var generatedTestAObjects = testAObjects.GenerateBetween (10000, 100000);
+            var generatedTestAObjects = testAObjects.GenerateBetween (1000, 10000);
 
-            var generatedTestBObjects = testAObjects.GenerateBetween (10000, 100000);
+            var generatedTestBObjects = testAObjects.GenerateBetween (1000, 10000);
 
             Exception exception = null;
             for (int i = 0; i < 10; i++)

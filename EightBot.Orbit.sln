@@ -23,7 +23,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Build", "Build", "{C88EB3D3
 		build.cake = build.cake
 		build.ps1 = build.ps1
 		cakebuild.sh = cakebuild.sh
-		OrbitClient.nuspec = OrbitClient.nuspec
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EightBot.Orbit.Server", "EightBot.Orbit.Server\EightBot.Orbit.Server.csproj", "{9ED191CF-CC8A-4122-B8E5-EBA61FE12E33}"

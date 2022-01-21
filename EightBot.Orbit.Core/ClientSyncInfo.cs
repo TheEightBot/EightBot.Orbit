@@ -8,7 +8,7 @@ namespace EightBot.Orbit
 
         public ClientOperationType Operation { get; set; }
 
-        public string Category { get; set; }
+        public string Partition { get; set; }
 
         public T Value { get; set; }
     }

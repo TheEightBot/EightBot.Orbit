@@ -1,30 +1,32 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.IO;
-using EightBot.Orbit.Client;
-using System.Linq;
-using Bogus;
-using System;
-using Bogus.Extensions;
-using System.Threading.Tasks;
-using FluentAssertions;
-using System.ServiceModel.Dispatcher;
-using System.Collections;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Bogus;
+using EightBot.Orbit.Client;
+using FluentAssertions;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Tycho;
 
-[assembly: Parallelize(Workers = 1, Scope = ExecutionScope.ClassLevel)]
 namespace EightBot.Orbit.Tests
 {
     [TestClass]
+    [DoNotParallelize]
     public class OrbitClientTests
     {
         OrbitClient _client;
 
-        string _tempDbFile;
+        readonly string _tempDbFile;
+
+        readonly Faker _globalFaker;
 
         public OrbitClientTests()
         {
             Randomizer.Seed = new Random(42);
+
+            _globalFaker = new Faker();
 
             _tempDbFile = Path.GetTempPath();
         }
@@ -33,14 +35,15 @@ namespace EightBot.Orbit.Tests
         public void Setup()
         {
             _client =
-                new OrbitClient()
-                    .Initialize(_tempDbFile, deleteExistingCache: true)
+                new OrbitClient(new NewtonsoftJsonSerializer())
+                    .Initialize(_tempDbFile, $"{Guid.NewGuid()}.db", deleteExistingCache: true)
                     .AddTypeRegistration<TestClassA, string>(x => x.StringProperty)
                     .AddTypeRegistration<TestClassB, string>(x => x.StringProperty)
                     .AddTypeRegistration<TestClassC, int>(x => x.IntProperty)
                     .AddTypeRegistration<TestClassE, Guid>(x => x.TestClassId)
                     .AddTypeRegistrationWithCustomKeySelector<TestClassD>(x => $"{x.FloatProperty}_{x.DoubleProperty}")
-                    .AddTypeRegistrationWithCustomKeySelector<string>(x => x);
+                    .AddTypeRegistrationWithCustomKeySelector<string>(x => x)
+                    .Startup();
         }
 
         [TestCleanup]
@@ -52,22 +55,26 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public void OrbitClient_Initialize_InitializesSuccessfully()
         {
             Assert.IsTrue(_client.Initialized);
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_ShutdownProcessStartup_ShouldProcess()
         {
             _client.Shutdown();
             _client.Startup();
 
+            var stringValue = Guid.NewGuid().ToString();
+
             var testFile =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 42
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             var result = await _client.Create(testFile);
@@ -82,13 +89,16 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_Create_ShouldBeSuccessful()
         {
+            var stringValue = Guid.NewGuid().ToString();
+
             var testFile = 
                 new TestClassA 
                 { 
-                    StringProperty = "Test Value",
-                    IntProperty = 42
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             var result = await _client.Create(testFile);
@@ -103,13 +113,16 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_CreateWithPartition_ShouldBeSuccessful()
         {
+            var stringValue = Guid.NewGuid().ToString();
+
             var testFile =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 42
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             var result = await _client.Create(testFile, "partition");
@@ -124,6 +137,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_CreateString_ShouldBeSuccessful()
         {
             var str = "Testing";
@@ -140,13 +154,14 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_CreateWithObjectThatUsesFuncProperty_ShouldBeSuccessful()
         {
             var testFile =
                 new TestClassD
                 {
                     FloatProperty = 10.0f,
-                    DoubleProperty = 42d
+                    DoubleProperty = _globalFaker.Random.Double(),
                 };
 
             var result = await _client.Create(testFile);
@@ -161,13 +176,14 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_CreateWithObjectThatUsesFuncPropertyWithPartition_ShouldBeSuccessful()
         {
             var testFile =
                 new TestClassD
                 {
                     FloatProperty = 10.0f,
-                    DoubleProperty = 42d
+                    DoubleProperty = _globalFaker.Random.Double(),
                 };
 
             var result = await _client.Create(testFile, "partition");
@@ -182,13 +198,15 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertAndGetLatest_ShouldFindMatch()
         {
+            var stringValue = Guid.NewGuid().ToString();
             var testFile =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 42
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             await _client.Create(testFile);
@@ -197,13 +215,15 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertToCacheAndGetLatest_ShouldFindMatch()
         {
+            var stringValue = Guid.NewGuid().ToString();
             var testFile =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 42
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             await _client.UpsertCacheItem(testFile);
@@ -212,15 +232,17 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertToCacheWithPartitionAndGetLatest_ShouldFindMatch()
         {
+            var stringValue = Guid.NewGuid().ToString();
             var partition = "partition";
 
             var testFile =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 42
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             await _client.UpsertCacheItem(testFile, partition);
@@ -229,6 +251,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertTestClassEToCacheAndGetLatest_ShouldFindMatch()
         {
             var testFile =
@@ -244,6 +267,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertTestClassEToCacheWithPartitionAndGetLatest_ShouldFindMatch()
         {
             var partition = "partition";
@@ -261,6 +285,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertStringAndGetLatest_ShouldFindMatch()
         {
             var testStr = "testStr";
@@ -271,15 +296,17 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertAndGetLatestWithPartition_ShouldFindMatch()
         {
+            var stringValue = Guid.NewGuid().ToString();
             var partition = "partition";
 
             var testFile =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 42
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             await _client.Create(testFile, partition);
@@ -288,13 +315,14 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertWithObjectThatUsesFuncPropertyAndGetLatest_ShouldFindMatch()
         {
             var testFile =
                 new TestClassD
                 {
                     FloatProperty = 10.0f,
-                    DoubleProperty = 42d
+                    DoubleProperty = _globalFaker.Random.Double(),
                 };
 
             await _client.Create(testFile);
@@ -303,6 +331,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertWithObjectThatUsesFuncPropertyAndGetLatestWithPartition_ShouldFindMatch()
         {
             var partition = "partition";
@@ -311,7 +340,7 @@ namespace EightBot.Orbit.Tests
                 new TestClassD
                 {
                     FloatProperty = 10.0f,
-                    DoubleProperty = 42d
+                    DoubleProperty = _globalFaker.Random.Double(),
                 };
 
             await _client.Create(testFile, partition);
@@ -320,78 +349,98 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertMultipleAndGetAll_CountShouldMatch()
         {
-            var expected = 2;
+            var expected = 1;
+
+            var stringValue = Guid.NewGuid().ToString();
 
             var testFile1 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 42
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             var testFile2 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
+                    StringProperty = stringValue,
                     IntProperty = 84
                 };
 
-            await _client.Create(testFile1);
-            await _client.Update(testFile2);
+            var createResult = await _client.Create(testFile1);
+
+            createResult.OperationResult.Should().Be(ClientOperationType.Create);
+
+            var updateResult = await _client.Update(testFile2);
+
+            updateResult.OperationResult.Should().Be(ClientOperationType.Update);
+
             var found = await _client.GetSyncHistory<TestClassA>(testFile1);
             Assert.IsTrue(found.Count() == expected);
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertMultipleAndGetAllWithPartition_CountShouldMatch()
         {
-            var expected = 2;
+            var expected = 1;
 
+            var stringValue = Guid.NewGuid().ToString();
             var partition = "partition";
 
             var testFile1 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 42
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             var testFile2 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
+                    StringProperty = stringValue,
                     IntProperty = 84
                 };
 
             var createResult = await _client.Create(testFile1, partition);
+
+            createResult.OperationResult.Should().Be(ClientOperationType.Create);
+
             var updateResult = await _client.Update(testFile2, partition);
+
+            updateResult.OperationResult.Should().Be(ClientOperationType.Update);
+
             var found = await _client.GetSyncHistory<TestClassA>(testFile1, partition);
             Assert.IsTrue(found.Count() == expected);
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertMultipleAndQuery_DoesGetLatest()
         {
+            var stringValue = Guid.NewGuid().ToString();
+
             var testFile1 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 42
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             var testFile2 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
+                    StringProperty = stringValue,
                     IntProperty = 84
                 };
 
             var testFile3 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
+                    StringProperty = stringValue,
                     IntProperty = 168
                 };
 
@@ -431,29 +480,33 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertMultipleAndQueryWithPartition_DoesGetLatest()
         {
-            var partition = "partition";
+            var stringValue = Guid.NewGuid().ToString();
+
+            var partition = $"partition_{stringValue}";
+
 
             var testFile1 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 42
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             var testFile2 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 84
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             var testFile3 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 168
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             await _client.Upsert(testFile1, partition);
@@ -462,38 +515,37 @@ namespace EightBot.Orbit.Tests
 
             var found = await _client.GetLatest(testFile3, partition);
 
-            Assert.IsTrue(found.IntProperty == testFile3.IntProperty);
+            found.IntProperty.Should().Be(testFile3.IntProperty);
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertAndDeleteAndInsert_ShouldNotInsert()
         {
+            var stringValue = Guid.NewGuid().ToString();
+
             var testFile1 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 42
+                    StringProperty = stringValue,
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             var testFile2 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
+                    StringProperty = stringValue,
                     IntProperty = 84
                 };
 
             var testFile3 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
+                    StringProperty = stringValue,
                     IntProperty = 168
                 };
 
             var upsert1Result = await _client.Upsert(testFile1);
-
-            upsert1Result.Success
-                .Should()
-                .BeTrue();
 
             upsert1Result.OperationResult
                 .Should()
@@ -501,19 +553,11 @@ namespace EightBot.Orbit.Tests
 
             var deleteResult = await _client.Delete(testFile2);
 
-            deleteResult.Success
-                .Should()
-                .BeTrue();
-
             deleteResult.OperationResult
                 .Should()
                 .Be(ClientOperationType.Delete);
 
             var upsert2Result = await _client.Upsert(testFile3);
-
-            upsert2Result.Success
-                .Should()
-                .BeFalse();
 
             upsert2Result.OperationResult
                 .Should()
@@ -521,29 +565,33 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertAndDeleteAndInsertWithPartition_ShouldNotInsert()
         {
             var partition = "partition";
 
+
+            var stringValue = Guid.NewGuid().ToString();
+
             var testFile1 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 42
+                    StringProperty = stringValue,
+                    IntProperty = 12312
                 };
 
             var testFile2 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 84
+                    StringProperty = stringValue,
+                    IntProperty = 2345567
                 };
 
             var testFile3 =
                 new TestClassA
                 {
-                    StringProperty = "Test Value",
-                    IntProperty = 168
+                    StringProperty = stringValue,
+                    IntProperty = 2345236
                 };
 
             var upsert1Result = await _client.Upsert(testFile1, partition);
@@ -578,6 +626,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertMultipleWithSameKey_ShouldFindRightTypes()
         {
             var id = "Test Value";
@@ -586,14 +635,14 @@ namespace EightBot.Orbit.Tests
                 new TestClassA
                 {
                     StringProperty = id,
-                    IntProperty = 42
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             var testFile2 =
                 new TestClassB
                 {
                     StringProperty = id,
-                    DoubleProperty = 42d
+                    DoubleProperty = _globalFaker.Random.Double(),
                 };
                 
             await _client.Upsert(testFile1);
@@ -607,6 +656,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertMultipleWithSameKeyWithPartition_ShouldFindRightTypes()
         {
             var id = "Test Value";
@@ -617,14 +667,14 @@ namespace EightBot.Orbit.Tests
                 new TestClassA
                 {
                     StringProperty = id,
-                    IntProperty = 42
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             var testFile2 =
                 new TestClassB
                 {
                     StringProperty = id,
-                    DoubleProperty = 42d
+                    DoubleProperty = _globalFaker.Random.Double(),
                 };
 
             await _client.Upsert(testFile1, partition);
@@ -638,27 +688,35 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_GetLatestSyncQueueWithInvalidId_ShouldFindNothing()
         {
-            var id = "Test Value";
+            var expected = 0;
+            var id = Guid.NewGuid().ToString();
 
             var partition = "test";
 
             var testFile1 =
-                new TestClassA
+                new TestClassB
                 {
                     StringProperty = id,
-                    IntProperty = 42
+                    DoubleProperty = _globalFaker.Random.Double(),
                 };
 
-            await _client.Upsert(testFile1, partition);
+            var insertSuccess = await _client.Upsert(testFile1, partition);
 
-            var foundA = await _client.GetAllLatestSyncQueue<TestClassA>();
+            insertSuccess.Success.Should().BeTrue();
+            insertSuccess.OperationResult.Should().Be(ClientOperationType.Create);
 
-            foundA.Should().BeEmpty();
+            var foundA = await _client.GetAllLatestSyncQueue<TestClassB>();
+
+            var foundCount = foundA.Count();
+
+            foundCount.Should().Be(expected);
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_GetAllLatest_PerfTest1 ()
         {
 
@@ -691,6 +749,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertConcurrent_ShouldNotFail()
         {
             try
@@ -753,6 +812,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_BulkInsertAndUpdate_ShouldGetNewValue()
         {
 
@@ -793,6 +853,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_BulkInsertAndUpdateWithPartition_ShouldGetNewValue()
         {
 
@@ -835,6 +896,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_BulkInsertAndDelete_ShouldDeleteAll ()
         {
             var expected = 100;
@@ -870,6 +932,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_InsertItemsWithCategories_ShouldGetRightItemForPartition()
         {
             var partition1 = "partition1";
@@ -879,7 +942,7 @@ namespace EightBot.Orbit.Tests
                 new TestClassA
                 {
                     StringProperty = "test1",
-                    IntProperty = 42
+                    IntProperty = _globalFaker.Random.Int(),
                 };
 
             var testFile2 =
@@ -917,7 +980,7 @@ namespace EightBot.Orbit.Tests
         //        new TestClassA
         //        {
         //            StringProperty = "test1",
-        //            IntProperty = 42
+        //            IntProperty = _globalFaker.Random.Int(),
         //        };
 
         //    var testFile2 =
@@ -949,7 +1012,7 @@ namespace EightBot.Orbit.Tests
         //        new TestClassA
         //        {
         //            StringProperty = "test1",
-        //            IntProperty = 42
+        //            IntProperty = _globalFaker.Random.Int(),
         //        };
 
         //    var testFile2 =
@@ -983,6 +1046,7 @@ namespace EightBot.Orbit.Tests
         //}
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_Reconcile_ShouldGetServerValue ()
         {
             var index = 1;
@@ -1037,6 +1101,7 @@ namespace EightBot.Orbit.Tests
         }
 
         [TestMethod]
+        [DoNotParallelize]
         public async Task OrbitClient_SlamItWithMessagesConcurrently_ShouldBeOkay ()
         {
 

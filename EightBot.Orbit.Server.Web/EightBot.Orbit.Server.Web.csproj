@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp2.2</TargetFramework>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageIconUrl>https://cdn3.iconfinder.com/data/icons/unigrid-phantom-science-vol-1/60/003_002_moon_orbit_ecuator_sputnik_satellite-128.png</PackageIconUrl>
     <Company>Eight-Bot</Company>

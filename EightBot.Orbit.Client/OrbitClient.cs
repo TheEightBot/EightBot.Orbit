@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Security.Cryptography.X509Certificates;
+using System.Threading.RateLimiting;
 using System.Threading.Tasks;
-using System.Threading.Tasks.Sources;
 using Tycho;
 
 namespace EightBot.Orbit.Client
@@ -24,7 +23,16 @@ namespace EightBot.Orbit.Client
 
         private readonly ISyncReconciler _syncReconciler;
 
-        private readonly ProcessingQueue _processingQueue = new ProcessingQueue();
+        private readonly IJsonSerializer _jsonSerializer;
+
+        private readonly RateLimiter _limiter =
+            new ConcurrencyLimiter(
+                new ConcurrencyLimiterOptions
+                {
+                    PermitLimit = 1,
+                    QueueLimit = int.MaxValue,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                });
 
         private TychoDb _db;
         private bool disposedValue;
@@ -37,8 +45,9 @@ namespace EightBot.Orbit.Client
 
         public bool Initialized { get; private set; }
 
-        public OrbitClient(ISyncReconciler syncReconciler = null)
+        public OrbitClient(IJsonSerializer jsonSerializer, ISyncReconciler syncReconciler = null)
         {
+            _jsonSerializer = jsonSerializer;
             _syncReconciler = syncReconciler ?? new SyncReconcilers.ServerWinsSyncReconciler();
         }
 
@@ -59,8 +68,7 @@ namespace EightBot.Orbit.Client
                         File.Delete(CachePath);
                     }
 
-                    _db =
-                        new TychoDb(cacheDirectory, new NewtonsoftJsonSerializer(), rebuildCache: deleteExistingCache, requireTypeRegistration: true);
+                    _db = new TychoDb(cacheDirectory, _jsonSerializer, rebuildCache: deleteExistingCache, requireTypeRegistration: true);
 
                     _db.Connect();
 
@@ -98,6 +106,7 @@ namespace EightBot.Orbit.Client
                 if (!Initialized)
                     return;
 
+
                 _db?.Disconnect();
 
                 Initialized = false;
@@ -115,7 +124,7 @@ namespace EightBot.Orbit.Client
                     throw new ClientNotInitializedException($"{nameof(Initialize)} must be called before you can add type registrations.");
 
                 _db.AddTypeRegistration<T, TId>(idSelector, idComparer);
-                _db.AddTypeRegistration<Synchronizable<T>, Guid>(x => x.Id);
+                _db.AddTypeRegistration<Synchronizable<T>, object>(x => x.TypeId);
             }
 
             return this;
@@ -132,110 +141,100 @@ namespace EightBot.Orbit.Client
                     throw new ClientNotInitializedException($"{nameof(Initialize)} must be called before you can add type registrations.");
 
                 _db.AddTypeRegistrationWithCustomKeySelector<T>(idSelector, idComparer);
-                _db.AddTypeRegistration<Synchronizable<T>, Guid>(x => x.Id);
+                _db.AddTypeRegistration<Synchronizable<T>, object>(x => x.TypeId);
             }
 
             return this;
         }
 
-        public Task<(bool Success, ClientOperationType OperationResult)> Create<T>(T obj, string partition = null)
+        public async Task<(bool Success, ClientOperationType OperationResult)> Create<T>(T obj, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var result = await ItemExistsAndAvailable(obj, partition).ConfigureAwait(false);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    if (!result.IsDeleted && !result.Exists)
-                    {
-                        await _db
-                            .WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Create), partition)
-                            .ConfigureAwait(false);
+            var result = await ItemExistsAndAvailable(obj, partition).ConfigureAwait(false);
 
-                        return (true, ClientOperationType.Create);
-                    }
+            if (!result.IsDeleted && !result.Exists)
+            {
+                await _db
+                    .WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Create), partition)
+                    .ConfigureAwait(false);
 
-                    return (false, ClientOperationType.NoOperation);
-                });
+                return (true, ClientOperationType.Create);
+            }
+
+            return (false, ClientOperationType.NoOperation);
         }
 
-        public Task<(bool Success, ClientOperationType OperationResult)> Update<T>(T obj, string partition = null)
+        public async Task<(bool Success, ClientOperationType OperationResult)> Update<T>(T obj, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var result = await ItemExistsAndAvailable(obj, partition).ConfigureAwait(false);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    if (!result.IsDeleted && result.Exists)
-                    {
-                        await _db
-                            .WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Update, partition), partition)
-                            .ConfigureAwait(false);
+            var result = await ItemExistsAndAvailable(obj, partition).ConfigureAwait(false);
 
-                        return (true, ClientOperationType.Update);
-                    }
+            if (!result.IsDeleted && result.Exists)
+            {
+                await _db
+                    .WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Update, partition), partition)
+                    .ConfigureAwait(false);
 
-                    return (false, ClientOperationType.NoOperation);
-                });
+                return (true, ClientOperationType.Update);
+            }
+
+            return (false, ClientOperationType.NoOperation);
         }
 
-        public Task<(bool Success, ClientOperationType OperationResult)> Upsert<T>(T obj, string partition = null)
+        public async Task<(bool Success, ClientOperationType OperationResult)> Upsert<T>(T obj, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var result = await ItemExistsAndAvailable(obj, partition).ConfigureAwait(false);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    if (!result.IsDeleted && result.Exists)
-                    {
-                        await _db
-                            .WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Update, partition), partition)
-                            .ConfigureAwait(false);
+            var result = await ItemExistsAndAvailable(obj, partition).ConfigureAwait(false);
 
-                        return (true, ClientOperationType.Update);
-                    }
-                    else if (!result.IsDeleted)
-                    {
-                        await _db
-                            .WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Create, partition), partition)
-                            .ConfigureAwait(false);
+            if (!result.IsDeleted && result.Exists)
+            {
+                await _db
+                    .WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Update, partition), partition)
+                    .ConfigureAwait(false);
 
-                        return (true, ClientOperationType.Create);
-                    }
+                return (true, ClientOperationType.Update);
+            }
+            else if (!result.IsDeleted)
+            {
+                await _db
+                    .WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Create, partition), partition)
+                    .ConfigureAwait(false);
 
-                    return (false, ClientOperationType.NoOperation);
-                });
+                return (true, ClientOperationType.Create);
+            }
+
+            return (false, ClientOperationType.NoOperation);
         }
 
-        public Task<(bool Success, ClientOperationType OperationResult)> Delete<T>(T obj, string partition = null)
+        public async Task<(bool Success, ClientOperationType OperationResult)> Delete<T>(T obj, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var result = await ItemExistsAndAvailable(obj, partition).ConfigureAwait(false);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    if (!result.IsDeleted && result.Exists)
-                    {
-                        await _db.WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Delete, partition), partition);
+            var result = await ItemExistsAndAvailable(obj, partition).ConfigureAwait(false);
 
-                        return (true, ClientOperationType.Delete);
-                    }
+            if (!result.IsDeleted && result.Exists)
+            {
+                await _db.WriteObjectAsync(GetAsSynchronizable(obj, ClientOperationType.Delete, partition), partition);
 
-                    return (false, ClientOperationType.NoOperation);
-                });
+                return (true, ClientOperationType.Delete);
+            }
+
+            return (false, ClientOperationType.NoOperation);
         }
 
-        public Task<IEnumerable<T>> GetAllOf<T> (string partition = null)
+        public async Task<IEnumerable<T>> GetAllOf<T> (string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    return _db.ReadObjectsAsync<T>(partition).AsTask();
-                });
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
+
+            return await _db.ReadObjectsAsync<T>(partition);
         }
 
         public async Task<IEnumerable<T>> GetAllLatest<T>(string partition = null)
@@ -319,21 +318,19 @@ namespace EightBot.Orbit.Client
             return syncQueueItem.Value;
         }
 
-        public Task<IEnumerable<T>> GetAllLatestSyncQueue<T>(string partition = null)
+        public async Task<IEnumerable<T>> GetAllLatestSyncQueue<T>(string partition = null)
             where T: class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    return
-                        (await _db.ReadObjectsAsync<Synchronizable<T>>(partition).ConfigureAwait(false))
-                        ?.OrderByDescending(x => x.ModifiedTimestamp)
-                        ?.GroupBy(x => x.TypeId)
-                        ?.Where(x => !x.Any(i => i.Operation == ClientOperationType.Delete))
-                        ?.Select(x => x.First().Value)
-                        ?.ToArray()
-                        ?? Enumerable.Empty<T>();
-                });
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
+
+            return
+                (await _db.ReadObjectsAsync<Synchronizable<T>>(partition).ConfigureAwait(false))
+                ?.OrderByDescending(x => x.ModifiedTimestamp)
+                ?.GroupBy(x => x.TypeId)
+                ?.Where(x => !x.Any(i => i.Operation == ClientOperationType.Delete))
+                ?.Select(x => x.First().Value)
+                ?.ToArray()
+                ?? Enumerable.Empty<T>();
         }
 
         public async Task<bool> PopulateCache<T>(IEnumerable<T> items, string partition = null, bool terminateSyncQueueHistory = false)
@@ -346,116 +343,104 @@ namespace EightBot.Orbit.Client
                 await TerminateSyncQueueHistory<T>(partition).ConfigureAwait(false);
             }
 
-            return await _processingQueue
-                .Queue(() => _db.WriteObjectsAsync(items, partition).AsTask())
-                .ConfigureAwait(false);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
+
+            return await _db.WriteObjectsAsync(items, partition);
         }
 
-        public Task<bool> DeleteCacheItem<T>(T item, string partition = null)
+        public async Task<bool> DeleteCacheItem<T>(T item, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var rti = _db.GetRegisteredTypeInformationFor<T>();
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return _db.DeleteObjectAsync<T>(rti.GetIdFor<T>(item), partition).AsTask();
-                });
+            var rti = _db.GetRegisteredTypeInformationFor<T>();
+
+            return await _db.DeleteObjectAsync<T>(rti.GetIdFor<T>(item), partition);
         }
 
-        public Task<bool> DeleteCacheItems<T>(string partition = null)
+        public async Task<bool> DeleteCacheItems<T>(string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var result = await _db.DeleteObjectsAsync<T>(partition).ConfigureAwait(false);
-                    return result >= 0;
-                });
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
+
+            var result = await _db.DeleteObjectsAsync<T>(partition).ConfigureAwait(false);
+            return result >= 0;
         }
 
-        public Task<bool> UpsertCacheItem<T>(T item, string partition = null)
+        public async Task<bool> UpsertCacheItem<T>(T item, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    return _db.WriteObjectAsync(item, partition).AsTask();
-                });
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
+
+            return await _db.WriteObjectAsync(item, partition);
         }
 
-        public Task<bool> UpsertCacheItems<T> (IEnumerable<T> items, string partition = null)
+        public async Task<bool> UpsertCacheItems<T> (IEnumerable<T> items, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    return _db.WriteObjectsAsync(items, partition).AsTask();
-                });
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
+
+            return await _db.WriteObjectsAsync(items, partition);
         }
 
-        public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(T obj, string partition = null)
+        public async Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(T obj, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var items =
-                        await _db
-                            .ReadObjectsAsync<Synchronizable<T>>(
-                                partition,
-                                GetSynchronizableItemFilter<T>(obj))
-                            .ConfigureAwait(false);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
+            var items =
+                await _db
+                    .ReadObjectsAsync<Synchronizable<T>>(
+                        partition,
+                        GetSynchronizableItemFilter<T>(obj))
+                    .ConfigureAwait(false);
+
+            return items
+                ?.OrderByDescending(x => x.ModifiedTimestamp)
+                ?.Select(x => GetAsClientSyncInfo(x))
+                ?.ToArray()
+                ?? Enumerable.Empty<ClientSyncInfo<T>>();
+        }
+
+        public async Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(SyncType syncType = SyncType.Latest, string partition = null)
+            where T : class
+        {
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
+
+            var items =
+                await _db
+                    .ReadObjectsAsync(partition, GetSynchronizableItemFilter<T>())
+                    .ConfigureAwait(false);
+
+            switch (syncType)
+            {
+                case SyncType.Latest:
                     return items
                         ?.OrderByDescending(x => x.ModifiedTimestamp)
-                        ?.Select(x => GetAsClientSyncInfo(x))
+                        ?.GroupBy(x => x.TypeId)
+                        ?.Where(x => x?.Any() ?? false)
+                        ?.Select(
+                            x =>
+                            {
+                                var latest = x.FirstOrDefault();
+                                return
+                                    latest != default
+                                        ? GetAsClientSyncInfo(latest)
+                                        : default;
+                            })
+                        ?.Where (x => x != default)
                         ?.ToArray()
                         ?? Enumerable.Empty<ClientSyncInfo<T>>();
-                });
-        }
+                case SyncType.FullHistory:
+                    return items
+                        ?.Where(x => x != default)
+                        ?.OrderBy(x => x.ModifiedTimestamp)
+                        ?.Select(x => GetAsClientSyncInfo(x))
+                        ?.ToList()
+                        ?? Enumerable.Empty<ClientSyncInfo<T>>();
+            }
 
-        public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(SyncType syncType = SyncType.Latest, string partition = null)
-            where T : class
-        {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var items =
-                        await _db
-                            .ReadObjectsAsync(partition, GetSynchronizableItemFilter<T>())
-                            .ConfigureAwait(false);
-
-                    switch (syncType)
-                    {
-                        case SyncType.Latest:
-                            return items
-                                ?.OrderByDescending(x => x.ModifiedTimestamp)
-                                ?.GroupBy(x => x.TypeId)
-                                ?.Where(x => x?.Any() ?? false)
-                                ?.Select(
-                                    x =>
-                                    {
-                                        var latest = x.FirstOrDefault();
-                                        return
-                                            latest != default
-                                                ? GetAsClientSyncInfo(latest)
-                                                : default;
-                                    })
-                                ?.Where (x => x != default)
-                                ?.ToArray()
-                                ?? Enumerable.Empty<ClientSyncInfo<T>>();
-                        case SyncType.FullHistory:
-                            return items
-                                ?.Where(x => x != default)
-                                ?.OrderBy(x => x.ModifiedTimestamp)
-                                ?.Select(x => GetAsClientSyncInfo(x))
-                                ?.ToList()
-                                ?? Enumerable.Empty<ClientSyncInfo<T>>();
-                    }
-
-                    return Enumerable.Empty<ClientSyncInfo<T>>();
-                });
+            return Enumerable.Empty<ClientSyncInfo<T>>();
         }
 
         public async Task<bool> ReplaceSyncQueueHistory<T>(T obj, string partition = null)
@@ -467,123 +452,111 @@ namespace EightBot.Orbit.Client
             return (await Create(obj, partition).ConfigureAwait(false)).Success;
         }
 
-        public Task<bool> TerminateSyncQueueHistoryFor<T>(T obj, string partition = null)
+        public async Task<bool> TerminateSyncQueueHistoryFor<T>(T obj, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var result =
-                        await _db
-                            .DeleteObjectsAsync(
-                                partition,
-                                GetSynchronizableItemFilter<T>(obj))
-                            .ConfigureAwait(false);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return result >= 0;
-                });
+            var result =
+                await _db
+                    .DeleteObjectsAsync(
+                        partition,
+                        GetSynchronizableItemFilter<T>(obj))
+                    .ConfigureAwait(false);
+
+            return result >= 0;
         }
 
-        public Task<bool> TerminateSyncQueueHistoriesFor<T> (IEnumerable<T> objs, string partition = null)
+        public async Task<bool> TerminateSyncQueueHistoriesFor<T> (IEnumerable<T> objs, string partition = null)
             where T : class
         {
             var objsArray = objs as T[] ?? objs.ToArray();
 
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var deletions = 0;
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    foreach (var obj in objsArray)
-                    {
-                        var deleteResult =
-                            await _db
-                            .DeleteObjectsAsync(
-                                partition,
-                                GetSynchronizableItemFilter<T>(obj))
-                            .ConfigureAwait(false);
+            var deletions = 0;
 
-                        deletions += deleteResult > 0 ? 1 : 0;
-                    }
+            foreach (var obj in objsArray)
+            {
+                var deleteResult =
+                    await _db
+                    .DeleteObjectsAsync(
+                        partition,
+                        GetSynchronizableItemFilter<T>(obj))
+                    .ConfigureAwait(false);
 
-                    return deletions == objsArray.Length;
-                });
+                deletions += deleteResult > 0 ? 1 : 0;
+            }
+
+            return deletions == objsArray.Length;
         }
 
-        public Task<bool> TerminateSyncQueueHistory<T>(string partition = null)
+        public async Task<bool> TerminateSyncQueueHistory<T>(string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var result =
-                        await _db
-                            .DeleteObjectsAsync(
-                                partition,
-                                FilterBuilder<Synchronizable<T>>
-                                    .Create()
-                                    .Filter(FilterType.Equals, x => x.Partition, partition))
-                            .ConfigureAwait(false);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return result >= 0;
-                });
+            var result =
+                await _db
+                    .DeleteObjectsAsync(
+                        partition,
+                        FilterBuilder<Synchronizable<T>>
+                            .Create()
+                            .Filter(FilterType.Equals, x => x.Partition, partition))
+                    .ConfigureAwait(false);
+
+            return result >= 0;
         }
 
-        public Task<bool> TerminateSyncQueueHistoryAt<T>(T obj, DateTimeOffset offset, string partition = null)
+        public async Task<bool> TerminateSyncQueueHistoryAt<T>(T obj, DateTimeOffset offset, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var result =
-                        await _db
-                            .DeleteObjectsAsync(
-                                partition,
-                                GetSynchronizableItemFilter<T>(obj)
-                                    .And()
-                                    .Filter(FilterType.Equals, x => x.ModifiedTimestamp, offset.ToUnixTimeMilliseconds()))
-                            .ConfigureAwait(false);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return result >= 0;
-                });
+            var result =
+                await _db
+                    .DeleteObjectsAsync(
+                        partition,
+                        GetSynchronizableItemFilter<T>(obj)
+                            .And()
+                            .Filter(FilterType.Equals, x => x.ModifiedTimestamp, offset.ToUnixTimeMilliseconds()))
+                    .ConfigureAwait(false);
+
+            return result >= 0;
         }
 
-        public Task<bool> TerminateSyncQueueHistoryBefore<T>(T obj, DateTimeOffset offset, string partition = null)
+        public async Task<bool> TerminateSyncQueueHistoryBefore<T>(T obj, DateTimeOffset offset, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var result =
-                        await _db
-                            .DeleteObjectsAsync(
-                                partition,
-                                GetSynchronizableItemFilter<T>(obj)
-                                    .And()
-                                    .Filter(FilterType.LessThan, x => x.ModifiedTimestamp, offset.ToUnixTimeMilliseconds()))
-                            .ConfigureAwait(false);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return result >= 0;
-                });
+            var result =
+                await _db
+                    .DeleteObjectsAsync(
+                        partition,
+                        GetSynchronizableItemFilter<T>(obj)
+                            .And()
+                            .Filter(FilterType.LessThan, x => x.ModifiedTimestamp, offset.ToUnixTimeMilliseconds()))
+                    .ConfigureAwait(false);
+
+            return result >= 0;
         }
 
-        public Task<bool> TerminateSyncQueueHistoryAfter<T>(T obj, DateTimeOffset offset, string partition = null)
+        public async Task<bool> TerminateSyncQueueHistoryAfter<T>(T obj, DateTimeOffset offset, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var result =
-                        await _db
-                            .DeleteObjectsAsync(
-                                partition,
-                                GetSynchronizableItemFilter<T>(obj)
-                                    .And()
-                                    .Filter(FilterType.GreaterThan, x => x.ModifiedTimestamp, offset.ToUnixTimeMilliseconds()))
-                            .ConfigureAwait(false);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return result >= 0;
-                });
+            var result =
+                await _db
+                    .DeleteObjectsAsync(
+                        partition,
+                        GetSynchronizableItemFilter<T>(obj)
+                            .And()
+                            .Filter(FilterType.GreaterThan, x => x.ModifiedTimestamp, offset.ToUnixTimeMilliseconds()))
+                    .ConfigureAwait(false);
+
+            return result >= 0;
         }
 
         public async Task Reconcile<T> (IEnumerable<ServerSyncInfo<T>> serverSyncInformation, string partition = null)
@@ -653,38 +626,34 @@ namespace EightBot.Orbit.Client
             return (false, cachedObject != null);
         }
 
-        private Task<Synchronizable<T>> GetLatestSyncQueue<T>(T obj, string partition = null)
+        private async Task<Synchronizable<T>> GetLatestSyncQueue<T>(T obj, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var synchObjects =
-                        await _db
-                            .ReadObjectsAsync<Synchronizable<T>>(
-                                partition,
-                                GetSynchronizableItemFilter<T>(obj))
-                            .ConfigureAwait(false);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return synchObjects?.OrderByDescending(x => x.ModifiedTimestamp)?.FirstOrDefault();
-                });
+            var synchObjects =
+                await _db
+                    .ReadObjectsAsync<Synchronizable<T>>(
+                        partition,
+                        GetSynchronizableItemFilter<T>(obj))
+                    .ConfigureAwait(false);
+
+            return synchObjects?.OrderByDescending(x => x.ModifiedTimestamp)?.FirstOrDefault();
         }
 
-        private Task<Synchronizable<T>> GetLatestSyncQueue<T>(object key, string partition = null)
+        private async Task<Synchronizable<T>> GetLatestSyncQueue<T>(object key, string partition = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                async () =>
-                {
-                    var synchObjects =
-                        await _db
-                            .ReadObjectsAsync<Synchronizable<T>>(
-                                partition,
-                                GetSynchronizableItemFilter<T>(key))
-                            .ConfigureAwait(false);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return synchObjects?.OrderByDescending(x => x.ModifiedTimestamp)?.FirstOrDefault();
-                });
+            var synchObjects =
+                await _db
+                    .ReadObjectsAsync<Synchronizable<T>>(
+                        partition,
+                        GetSynchronizableItemFilter<T>(key))
+                    .ConfigureAwait(false);
+
+            return synchObjects?.OrderByDescending(x => x.ModifiedTimestamp)?.FirstOrDefault();
         }
 
         private Synchronizable<T> GetAsSynchronizable<T>(T obj, ClientOperationType operationType, string partition = null)
@@ -696,7 +665,6 @@ namespace EightBot.Orbit.Client
 
             return new Synchronizable<T>
             {
-                Id = Guid.NewGuid(),
                 TypeId = rti.GetIdFor(obj),
                 Partition = partition,
                 TypeFullName = rti.TypeFullName,

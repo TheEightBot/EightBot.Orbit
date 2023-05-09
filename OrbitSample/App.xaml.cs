@@ -1,9 +1,8 @@
-﻿using System;
-using Xamarin.Forms;
-using Xamarin.Forms.Xaml;
-using EightBot.Orbit.Client;
-using Splat;
+﻿using EightBot.Orbit.Client;
 using OrbitSample.Models;
+using Splat;
+using Tycho;
+using Xamarin.Forms;
 
 namespace OrbitSample
 {
@@ -14,7 +13,7 @@ namespace OrbitSample
             InitializeComponent();
 
             var orbitClient =
-                new OrbitClient()
+                new OrbitClient(new NewtonsoftJsonSerializer())
                     .Initialize(Xamarin.Essentials.FileSystem.AppDataDirectory)
                     .AddTypeRegistration<Post, string>(x => x.Id)
                     .AddTypeRegistration<User, string>(x => x.Username);

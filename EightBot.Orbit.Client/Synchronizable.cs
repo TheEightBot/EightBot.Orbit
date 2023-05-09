@@ -4,8 +4,6 @@ namespace EightBot.Orbit.Client
 {
     internal class Synchronizable<T>
     {
-        public Guid Id { get; set; }
-
         public object TypeId { get; set; }
 
         public string TypeFullName { get; set; }

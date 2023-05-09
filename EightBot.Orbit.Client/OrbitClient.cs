@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading.RateLimiting;
 using System.Threading.Tasks;
 using LiteDB;
 
@@ -27,7 +28,14 @@ namespace EightBot.Orbit.Client
         private readonly Dictionary<Type, RegisteredTypeInformation> _registeredTypes =
             new Dictionary<Type, RegisteredTypeInformation>();
 
-        private readonly ProcessingQueue _processingQueue = new ProcessingQueue();
+        private readonly RateLimiter _limiter =
+            new ConcurrencyLimiter(
+                new ConcurrencyLimiterOptions
+                {
+                    PermitLimit = 1,
+                    QueueLimit = int.MaxValue,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                });
 
         private LiteDatabase _db;
 
@@ -115,14 +123,18 @@ namespace EightBot.Orbit.Client
             }
         }
 
-        public Task CleanUp()
+        public async Task CleanUp()
         {
-            return _processingQueue
-                .Queue (
-                    () =>
-                    {
-                        _db.Shrink ();
-                    });
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
+
+            try
+            {
+                _db.Shrink ();
+            }
+            catch (PlatformNotSupportedException)
+            {
+
+            }
         }
 
         public OrbitClient AddTypeRegistration<T>(Func<T, Task> additionalProcessing = null, string typeNameOverride = null)
@@ -189,85 +201,77 @@ namespace EightBot.Orbit.Client
             return this;
         }
 
-        public Task<(bool Success, ClientOperationType OperationResult)> Create<T>(T obj, string category = null)
+        public async Task<(bool Success, ClientOperationType OperationResult)> Create<T>(T obj, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var result = ItemExistsAndAvailable(obj, category);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    if (!result.IsDeleted && !result.Exists)
-                    {
-                        var syncCollection = GetSynchronizableTypeCollection<T>();
-                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
+            var result = ItemExistsAndAvailable(obj, category);
 
-                        return (true, ClientOperationType.Create);
-                    }
+            if (!result.IsDeleted && !result.Exists)
+            {
+                var syncCollection = GetSynchronizableTypeCollection<T>();
+                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
 
-                    return (false, ClientOperationType.NoOperation);
-                });
+                return (true, ClientOperationType.Create);
+            }
+
+            return (false, ClientOperationType.NoOperation);
         }
 
-        public Task<(bool Success, ClientOperationType OperationResult)> Update<T>(T obj, string category = null)
+        public async Task<(bool Success, ClientOperationType OperationResult)> Update<T>(T obj, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var result = ItemExistsAndAvailable(obj, category);
-                    if (!result.IsDeleted && result.Exists)
-                    {
-                        var syncCollection = GetSynchronizableTypeCollection<T>();
-                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
-                        return (true, ClientOperationType.Update);
-                    }
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return (false, ClientOperationType.NoOperation);
-                });
+            var result = ItemExistsAndAvailable(obj, category);
+            if (!result.IsDeleted && result.Exists)
+            {
+                var syncCollection = GetSynchronizableTypeCollection<T>();
+                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
+                return (true, ClientOperationType.Update);
+            }
+
+            return (false, ClientOperationType.NoOperation);
         }
 
-        public Task<(bool Success, ClientOperationType OperationResult)> Upsert<T>(T obj, string category = null)
+        public async Task<(bool Success, ClientOperationType OperationResult)> Upsert<T>(T obj, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    var result = ItemExistsAndAvailable(obj, category);
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                    if (!result.IsDeleted && result.Exists)
-                    {
-                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
-                        return (true, ClientOperationType.Update);
-                    }
-                    else if(!result.IsDeleted)
-                    {
-                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
-                        return (true, ClientOperationType.Create);
-                    }
+            var result = ItemExistsAndAvailable(obj, category);
 
-                    return (false, ClientOperationType.NoOperation);
-                });
+            if (!result.IsDeleted && result.Exists)
+            {
+                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Update, category));
+                return (true, ClientOperationType.Update);
+            }
+            else if (!result.IsDeleted)
+            {
+                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Create, category));
+                return (true, ClientOperationType.Create);
+            }
+
+            return (false, ClientOperationType.NoOperation);
         }
 
-        public Task<(bool Success, ClientOperationType OperationResult)> Delete<T>(T obj, string category = null)
+        public async Task<(bool Success, ClientOperationType OperationResult)> Delete<T>(T obj, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var result = ItemExistsAndAvailable(obj, category);
-                    if (!result.IsDeleted && result.Exists)
-                    {
-                        var syncCollection = GetSynchronizableTypeCollection<T>();
-                        syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Delete, category));
-                        return (true, ClientOperationType.Delete);
-                    }
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return (false, ClientOperationType.NoOperation);
-                });
+            var result = ItemExistsAndAvailable(obj, category);
+            if (!result.IsDeleted && result.Exists)
+            {
+                var syncCollection = GetSynchronizableTypeCollection<T>();
+                syncCollection.Insert(GetAsSynchronizable(obj, ClientOperationType.Delete, category));
+                return (true, ClientOperationType.Delete);
+            }
+
+            return (false, ClientOperationType.NoOperation);
         }
 
         public async Task<IEnumerable<string>> GetCategories<T>()
@@ -276,54 +280,53 @@ namespace EightBot.Orbit.Client
             var rti = _registeredTypes[typeof(T)];
             var ctn = rti.GetCategoryTypeName();
 
-            var typeCollectionNames =
-                await _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            return _db.GetCollectionNames()
-                                    ?.Where(x => x.StartsWith(ctn, StringComparison.Ordinal) && x.Contains(CategorySeparator))
-                                    ?.Select(x => x.Substring(x.IndexOf(CategorySeparator, StringComparison.Ordinal) + CategorySeparator.Length))
-                                    ?.ToList()
-                                ?? new List<string>();
-                        })
-                    .ConfigureAwait(false);
+            List<string> typeCollectionNames = new List<string>();
+
+            using (var lease = await _limiter.AcquireAsync().ConfigureAwait(false))
+            {
+                typeCollectionNames.AddRange(
+                    _db.GetCollectionNames()
+                        ?.Where(x => x.StartsWith(ctn, StringComparison.Ordinal) && x.Contains(CategorySeparator))
+                        ?.Select(x => x.Substring(x.IndexOf(CategorySeparator, StringComparison.Ordinal) + CategorySeparator.Length))
+                        ?.ToList()
+                    ?? Enumerable.Empty<string>());
+            }
+
 
             //TODO: This could be optimized
             var latestSyncables = await GetAllLatestSyncQueue<T>().ConfigureAwait(false);
 
-            var syncCategories =
-                await _processingQueue
-                    .Queue(
-                        () =>
-                        {
-                            var syncCollection = GetSynchronizableTypeCollection<T>();
+            List<string> syncCategories = new List<string>();
 
-                            return syncCollection
-                                    .Find(Query.And(
-                                        Query.Not(SynchronizableCategory, null),
-                                        Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>())))
-                                    .GroupBy(x => x.Category)
-                                    .Select(x => x.Key)
-                                    .ToList();
-                        })
-                    .ConfigureAwait(false);
+            using (var lease = await _limiter.AcquireAsync().ConfigureAwait(false))
+            {
+                var syncCollection = GetSynchronizableTypeCollection<T>();
+
+                syncCategories
+                    .AddRange(
+                        syncCollection
+                            ?.Find(Query.And(
+                                Query.Not(SynchronizableCategory, null),
+                                Query.EQ(SynchronizableTypeNameIndex, GetTypeFullName<T>())))
+                            ?.GroupBy(x => x.Category)
+                            ?.Select(x => x.Key)
+                            ?.ToList()
+                            ?? Enumerable.Empty<string>());
+            }
 
             return syncCategories?.Any() ?? false
                 ? typeCollectionNames.Union(syncCategories)
                 : typeCollectionNames;
         }
 
-        public Task<List<T>> GetAllOf<T> (string category = null)
+        public async Task<List<T>> GetAllOf<T> (string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var typeCollection = GetTypeCollection<T>(category);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return typeCollection.FindAll().ToList();
-                });
+            var typeCollection = GetTypeCollection<T>(category);
+
+            return typeCollection.FindAll().ToList();
         }
 
         public async Task<IEnumerable<T>> GetAllLatest<T>(string category = null)
@@ -378,48 +381,44 @@ namespace EightBot.Orbit.Client
             return GetLatestInternal<T>(new BsonValue(id), category);
         }
 
-        private Task<T> GetLatestInternal<T>(BsonValue id, string category = null)
+        private async Task<T> GetLatestInternal<T>(BsonValue id, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    var cacheable =
-                        syncCollection
-                            .FindOne(
-                                Query.And(
-                                    Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
-                                    GetItemQueryWithId<T>(id, category)));
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                    if (cacheable != null)
-                        return cacheable.Value;
+            var cacheable =
+                syncCollection
+                    .FindOne(
+                        Query.And(
+                            Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
+                            GetItemQueryWithId<T>(id, category)));
 
-                    var typeCollection = GetTypeCollection<T>(category);
+            if (cacheable != null)
+                return cacheable.Value;
 
-                    return typeCollection.FindById(id);
-                });
+            var typeCollection = GetTypeCollection<T>(category);
+
+            return typeCollection.FindById(id);
         }
 
-        public Task<List<T>> GetAllLatestSyncQueue<T>(string category = null)
+        public async Task<List<T>> GetAllLatestSyncQueue<T>(string category = null)
             where T: class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return syncCollection
-                        .Find(GetItemQuery<T>(category))
-                        ?.ToList()
-                        ?.OrderByDescending(x => x.ModifiedTimestamp)
-                        ?.GroupBy(x => x.TypeId)
-                        ?.Where(x => !x.Any(i => i.Operation == (int)ClientOperationType.Delete))
-                        ?.Select(x => x.First().Value)
-                        ?.ToList()
-                        ?? new List<T>();
-                });
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+
+            return syncCollection
+                .Find(GetItemQuery<T>(category))
+                ?.ToList()
+                ?.OrderByDescending(x => x.ModifiedTimestamp)
+                ?.GroupBy(x => x.TypeId)
+                ?.Where(x => !x.Any(i => i.Operation == (int)ClientOperationType.Delete))
+                ?.Select(x => x.First().Value)
+                ?.ToList()
+                ?? new List<T>();
         }
 
         public async Task<bool> PopulateCache<T>(IEnumerable<T> items, string category = null, bool terminateSyncQueueHistory = false)
@@ -433,69 +432,54 @@ namespace EightBot.Orbit.Client
             if (terminateSyncQueueHistory && !(await TerminateSyncQueueHistory<T>(category).ConfigureAwait(false)))
                 return false;
 
-            return await _processingQueue
-                .Queue(
-                    () =>
-                    {
-                        var typeCollection = GetTypeCollection<T>(category);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                        return typeCollection.Upsert(items) == items.Count();
-                    })
-                .ConfigureAwait(false);
+            var typeCollection = GetTypeCollection<T>(category);
 
+            return typeCollection.Upsert(items) == items.Count();
         }
 
-        public Task<bool> DropCache<T>(string category = null)
+        public async Task<bool> DropCache<T>(string category = null)
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var rti = _registeredTypes[typeof(T)];
-                    var ctn = rti.GetCategoryTypeName(category);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    var typeCollection = GetTypeCollection<T> (category);
+            var rti = _registeredTypes[typeof(T)];
+            var ctn = rti.GetCategoryTypeName(category);
 
-                    if (!_db.CollectionExists(ctn))
-                        return true;
+            var typeCollection = GetTypeCollection<T> (category);
 
-                    return _db.DropCollection(ctn);
-                });
+            if (!_db.CollectionExists(ctn))
+                return true;
+
+            return _db.DropCollection(ctn);
         }
 
-        public Task<bool> DeleteCacheItem<T>(T item, string category = null)
+        public async Task<bool> DeleteCacheItem<T>(T item, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var typeCollection = GetTypeCollection<T>(category);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return typeCollection.Delete(GetId (item));
-                });
+            var typeCollection = GetTypeCollection<T>(category);
+
+            return typeCollection.Delete(GetId (item));
         }
 
-        public Task<bool> UpsertCacheItem<T>(T item, string category = null)
+        public async Task<bool> UpsertCacheItem<T>(T item, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var typeCollection = GetTypeCollection<T>(category);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
+            var typeCollection = GetTypeCollection<T>(category);
 
-                    return typeCollection.Upsert(item);
-                });
+            return typeCollection.Upsert(item);
         }
 
-        public Task<bool> UpsertCacheItems<T> (IEnumerable<T> items, string category = null)
+        public async Task<bool> UpsertCacheItems<T> (IEnumerable<T> items, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var typeCollection = GetTypeCollection<T>(category);
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
+            var typeCollection = GetTypeCollection<T>(category);
 
-                    return typeCollection.Upsert(items) == items.Count();
-                });
+            return typeCollection.Upsert(items) == items.Count();
         }
 
         public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(T obj, string category = null)
@@ -505,92 +489,86 @@ namespace EightBot.Orbit.Client
             return GetSyncHistoryInternal<T>(id, category);
         }
 
-        private Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistoryInternal<T>(BsonValue id, string category = null)
+        private async Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistoryInternal<T>(BsonValue id, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    var cacheables =
-                        syncCollection
-                            .Find(
-                                Query.And(
-                                    Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
-                                    GetItemQueryWithId<T>(id, category)))
-                            ?.ToList();
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                    return
-                        cacheables
-                            ?.Select(x => GetAsClientSyncInfo(x))
-                            ?.ToList()
+            var cacheables =
+                syncCollection
+                    .Find(
+                        Query.And(
+                            Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
+                            GetItemQueryWithId<T>(id, category)))
+                    ?.ToList();
+
+            return
+                cacheables
+                    ?.Select(x => GetAsClientSyncInfo(x))
+                    ?.ToList()
+                ?? Enumerable.Empty<ClientSyncInfo<T>>();
+        }
+
+        public async Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(SyncType syncType = SyncType.Latest, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
+            where T : class
+        {
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
+
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+
+            switch (syncType)
+            {
+                case SyncType.Latest:
+                    return syncCollection
+                        .Find(GetItemQuery<T>(category, categorySearch))
+                        ?.OrderByDescending(x => x.ModifiedTimestamp)
+                        ?.GroupBy(x => x.TypeId)
+                        ?.Where(x => x?.Any() ?? false)
+                        ?.Select(
+                            x =>
+                            {
+                                var latest = x.FirstOrDefault();
+                                return
+                                    latest != default
+                                        ? GetAsClientSyncInfo(latest)
+                                        : default;
+                            })
+                        ?.Where(x => x != default)
+                        ?.ToList()
                         ?? Enumerable.Empty<ClientSyncInfo<T>>();
-                });
+                case SyncType.FullHistory:
+                    return syncCollection
+                        .Find(GetItemQuery<T>(category, categorySearch))
+                        ?.Where(x => x != default)
+                        ?.OrderBy(x => x.ModifiedTimestamp)
+                        ?.Select(x => GetAsClientSyncInfo(x))
+                        ?.ToList()
+                        ?? Enumerable.Empty<ClientSyncInfo<T>>();
+            }
+
+            return Enumerable.Empty<ClientSyncInfo<T>>();
         }
 
-        public Task<IEnumerable<ClientSyncInfo<T>>> GetSyncHistory<T>(SyncType syncType = SyncType.Latest, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
+        public async Task<int> GetSyncHistoryCount<T>(SyncType syncType = SyncType.Latest, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    switch (syncType)
-                    {
-                        case SyncType.Latest:
-                            return syncCollection
-                                .Find(GetItemQuery<T>(category, categorySearch))
-                                ?.OrderByDescending(x => x.ModifiedTimestamp)
-                                ?.GroupBy(x => x.TypeId)
-                                ?.Where(x => x?.Any() ?? false)
-                                ?.Select(
-                                    x =>
-                                    {
-                                        var latest = x.FirstOrDefault();
-                                        return
-                                            latest != default
-                                                ? GetAsClientSyncInfo(latest)
-                                                : default;
-                                    })
-                                ?.Where (x => x != default)
-                                ?.ToList()
-                                ?? Enumerable.Empty<ClientSyncInfo<T>>();
-                        case SyncType.FullHistory:
-                            return syncCollection
-                                .Find(GetItemQuery<T>(category, categorySearch))
-                                ?.Where(x => x != default)
-                                ?.OrderBy(x => x.ModifiedTimestamp)
-                                ?.Select(x => GetAsClientSyncInfo(x))
-                                ?.ToList()
-                                ?? Enumerable.Empty<ClientSyncInfo<T>>();
-                    }
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                    return Enumerable.Empty<ClientSyncInfo<T>>();
-                });
-        }
+            switch (syncType)
+            {
+                case SyncType.Latest:
+                    return syncCollection
+                        .Count(GetItemQuery<T>(category, categorySearch));
+                case SyncType.FullHistory:
+                    return syncCollection
+                        .Count(GetItemQuery<T>(category, categorySearch));
+            }
 
-        public Task<int> GetSyncHistoryCount<T>(SyncType syncType = SyncType.Latest, string category = null, CategorySearch categorySearch = CategorySearch.FullMatch)
-            where T : class
-        {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
-
-                    switch (syncType)
-                    {
-                        case SyncType.Latest:
-                            return syncCollection
-                                .Count(GetItemQuery<T>(category, categorySearch));
-                        case SyncType.FullHistory:
-                            return syncCollection
-                                .Count(GetItemQuery<T>(category, categorySearch));
-                    }
-
-                    return 0;
-                });
+            return 0;
         }
 
         public async Task<bool> ReplaceSyncQueueHistory<T>(T obj, string category = null)
@@ -602,100 +580,88 @@ namespace EightBot.Orbit.Client
             return (await Create(obj, category).ConfigureAwait(false)).Success;
         }
 
-        public Task<bool> TerminateSyncQueueHistory<T>(T obj, string category = null)
+        public async Task<bool> TerminateSyncQueueHistory<T>(T obj, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return syncCollection.Delete(GetItemQuery(obj, category)) > 0;
-                });
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+
+            return syncCollection.Delete(GetItemQuery(obj, category)) > 0;
         }
 
-        public Task<bool> TerminateSyncQueueHistories<T> (IEnumerable<T> objs, string category = null)
+        public async Task<bool> TerminateSyncQueueHistories<T> (IEnumerable<T> objs, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    var deletions = 0;
-                    foreach (var obj in objs)
-                    {
-                        deletions += syncCollection.Delete(GetItemQuery(obj, category));
-                    }
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                    return deletions == objs.Count();
-                });
+            var deletions = 0;
+            foreach (var obj in objs)
+            {
+                deletions += syncCollection.Delete(GetItemQuery(obj, category));
+            }
+
+            return deletions == objs.Count();
         }
 
-        public Task<bool> TerminateSyncQueueHistory<T>(string category = null)
+        public async Task<bool> TerminateSyncQueueHistory<T>(string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return syncCollection.Delete(GetItemQuery<T>(category)) > 0;
-                });
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+
+            return syncCollection.Delete(GetItemQuery<T>(category)) > 0;
         }
 
-        public Task<bool> TerminateSyncQueueHistoryAt<T>(T obj, DateTimeOffset offset, string category = null)
+        public async Task<bool> TerminateSyncQueueHistoryAt<T>(T obj, DateTimeOffset offset, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return syncCollection
-                        .Delete(
-                            Query.And(
-                                GetItemQuery(obj, category),
-                                Query.EQ(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
-                });
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+
+            return syncCollection
+                .Delete(
+                    Query.And(
+                        GetItemQuery(obj, category),
+                        Query.EQ(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
         }
 
-        public Task<bool> TerminateSyncQueueHistoryBefore<T>(T obj, DateTimeOffset offset, string category = null)
+        public async Task<bool> TerminateSyncQueueHistoryBefore<T>(T obj, DateTimeOffset offset, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return syncCollection
-                        .Delete(
-                            Query.And(
-                                GetItemQuery(obj, category),
-                                Query.LT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
-                });
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+
+            return syncCollection
+                .Delete(
+                    Query.And(
+                        GetItemQuery(obj, category),
+                        Query.LT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
         }
 
-        public Task<bool> TerminateSyncQueueHistoryAfter<T>(T obj, DateTimeOffset offset, string category = null)
+        public async Task<bool> TerminateSyncQueueHistoryAfter<T>(T obj, DateTimeOffset offset, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    return syncCollection
-                        .Delete(
-                            Query.And(
-                                GetItemQuery(obj, category),
-                                Query.GT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
-                });
+            var syncCollection = GetSynchronizableTypeCollection<T>();
+
+            return syncCollection
+                .Delete(
+                    Query.And(
+                        GetItemQuery(obj, category),
+                        Query.GT(SynchronizableModifiedTimestampIndex, offset.ToUnixTimeMilliseconds()))) > 0;
         }
 
         public async Task Reconcile<T> (IEnumerable<ServerSyncInfo<T>> serverSyncInformation, string category = null)
             where T : class
         {
-            var latest = await GetSyncHistory<T> (SyncType.Latest, category).ConfigureAwait (false);
+            var latest = await GetSyncHistory<T> (SyncType.Latest, category).ConfigureAwait(false);
 
             var replacements = new List<T> ();
             var inserts = new List<T> ();
@@ -765,23 +731,21 @@ namespace EightBot.Orbit.Client
             return (deleted > 0, count > 0);
         }
 
-        private Task<Synchronizable<T>> GetLatestSyncQueue<T>(BsonValue id, string category = null)
+        private async Task<Synchronizable<T>> GetLatestSyncQueue<T>(BsonValue id, string category = null)
             where T : class
         {
-            return _processingQueue.Queue(
-                () =>
-                {
-                    var syncCollection = GetSynchronizableTypeCollection<T>();
+            using var lease = await _limiter.AcquireAsync().ConfigureAwait(false);
 
-                    var cacheable =
-                        syncCollection
-                            .FindOne(
-                                Query.And(
-                                    Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
-                                    GetItemQueryWithId<T>(id, category)));
+            var syncCollection = GetSynchronizableTypeCollection<T>();
 
-                    return cacheable;
-                });
+            var cacheable =
+                syncCollection
+                    .FindOne(
+                        Query.And(
+                            Query.All(SynchronizableModifiedTimestampIndex, Query.Descending),
+                            GetItemQueryWithId<T>(id, category)));
+
+            return cacheable;
         }
 
         private Synchronizable<T> GetAsSynchronizable<T>(T obj, ClientOperationType operationType, string category = null)

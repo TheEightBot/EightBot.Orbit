@@ -1,16 +1,14 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.IO;
-using EightBot.Orbit.Client;
-using System.Linq;
-using Bogus;
-using System;
-using Bogus.Extensions;
-using System.Threading.Tasks;
-using FluentAssertions;
-using System.ServiceModel.Dispatcher;
-using System.Collections;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Bogus;
+using Bogus.Extensions;
+using EightBot.Orbit.Client;
+using FluentAssertions;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace EightBot.Orbit.Tests
 {
@@ -660,7 +658,6 @@ namespace EightBot.Orbit.Tests
         [TestMethod]
         public async Task OrbitClient_GetAllLatest_PerfTest1 ()
         {
-
             var category = "test";
 
             var items =
